@@ -24,7 +24,7 @@ One site identity joins several game profiles while game plugins remain authorit
 
 ## Operating Context
 
-After signing in, players first see server cards and open a game-specific profile from a card. Minecraft players obtain a short-lived, single-use link code with an in-game command after AurumAuth has authenticated them; the chat message also offers a link to the site. Players can browse all guilds, subject to each guild's privacy settings, and use website features even when not in-game where the bridge safely supports it.
+After signing in, players land on a global home with game cards and a shared community news feed. Choosing Minecraft opens its own space; Minecraft guild navigation and its game-specific feed live there, not on the global home. Minecraft players obtain a short-lived, single-use link code with an in-game command after AurumAuth has authenticated them; the chat message also offers a link to the site. Players can browse Minecraft guilds, subject to each guild's privacy settings, and use website features even when not in-game where the bridge safely supports it.
 
 ## Capabilities and Constraints
 
@@ -40,7 +40,7 @@ After signing in, players first see server cards and open a game-specific profil
 
 ## Brand Commitments
 
-Use the Aurum name and recognizable gold emblem. The existing staff panel uses a Nocturne dark visual language with a muted violet accent; the player site should feel related without looking like an administrator dashboard. Exact visual direction has not been approved.
+Use the Aurum name and recognizable gold emblem. The existing staff panel uses a Nocturne dark visual language with a muted violet accent; the player site should feel related without looking like an administrator dashboard. The user approved the current palette; the site also needs a persistent light-theme switch in the lower-left navigation.
 
 ## Evidence on Hand
 
@@ -56,4 +56,4 @@ The existing panel in the `images` repository contains the Aurum emblem and Noct
 ## Open Decisions
 
 - Confirm whether the website starts only in Russian or launches with Russian, Polish, and English.
-- Confirm the visual direction after reviewing the first screenshot.
+- Confirm the revised navigation and game-specific layout after reviewing the next screenshots.
