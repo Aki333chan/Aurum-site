@@ -24,7 +24,7 @@ One site identity joins several game profiles while game plugins remain authorit
 
 ## Operating Context
 
-After signing in, players land on a global home with game cards and a shared community news feed. Choosing Minecraft opens its own space; Minecraft guild navigation and its game-specific feed live there, not on the global home. Minecraft players obtain a short-lived, single-use link code with an in-game command after AurumAuth has authenticated them; the chat message also offers a link to the site. Players can browse Minecraft guilds, subject to each guild's privacy settings, and use website features even when not in-game where the bridge safely supports it.
+After signing in, players land on a global home with game cards and a shared community news feed. The global Servers section lists game worlds; choosing Minecraft opens its server space. Overview and Guilds are contextual tabs within that server space, not extra entries in global navigation. The game-specific feed lives there, not on the global home. Minecraft players obtain a short-lived, single-use link code with an in-game command after AurumAuth has authenticated them; the chat message also offers a link to the site. Players can browse Minecraft guilds, subject to each guild's privacy settings, and use website features even when not in-game where the bridge safely supports it.
 
 ## Capabilities and Constraints
 

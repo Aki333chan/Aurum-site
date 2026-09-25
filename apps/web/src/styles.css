@@ -177,6 +177,10 @@ code { color: var(--gold); font-family: inherit; font-weight: 600; }
 
 .game-page { max-width: 1130px; margin: 0 auto; }
 .game-page .page-intro { margin-bottom: 27px; }
+.game-tabs { display: flex; gap: 25px; border-bottom: 1px solid var(--border-soft); margin-bottom: 25px; }
+.game-tabs button { min-height: 42px; padding: 0 3px 11px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--muted); font-size: 13px; font-weight: 600; }
+.game-tabs button:hover { color: var(--text); }
+.game-tabs button.active { color: var(--text); border-bottom-color: var(--violet); }
 .game-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(230px, 1fr); gap: 17px; }
 .game-profile-card, .game-guild-card { min-height: 238px; padding: 26px; border: 1px solid var(--border); border-radius: 15px; background: var(--panel); }
 .game-profile-card > .game-icon { margin-bottom: 21px; color: var(--gold); }
@@ -225,7 +229,8 @@ code { color: var(--gold); font-family: inherit; font-weight: 600; }
 .concept-page { max-width: 720px; }
 .concept-page h1 { font-size: 38px; letter-spacing: -.04em; margin: 0 0 12px; }
 .concept-page > p { color: var(--muted); font-size: 14px; line-height: 1.65; max-width: 620px; }
-.concept-card { display: flex; align-items: flex-start; gap: 17px; margin-top: 37px; border: 1px solid var(--border); background: var(--panel); border-radius: 14px; padding: 23px; }
+.concept-page .game-tabs { margin-top: 25px; }
+.concept-card { display: flex; align-items: flex-start; gap: 17px; border: 1px solid var(--border); background: var(--panel); border-radius: 14px; padding: 23px; }
 .concept-card > span { display: flex; justify-content: center; align-items: center; width: 45px; height: 45px; border-radius: 10px; color: var(--gold); background: rgba(222,184,108,.10); flex: 0 0 auto; }
 .concept-card strong { display: block; font-size: 14px; margin: 2px 0 6px; }
 .concept-card p { color: var(--muted); font-size: 12px; line-height: 1.55; margin: 0; }

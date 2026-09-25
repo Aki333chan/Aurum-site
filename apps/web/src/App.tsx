@@ -57,7 +57,7 @@ function App() {
           <span className="brand-mark"><img src="/aurum-logo.png" alt="" /></span>
           <span className="brand-text"><strong>AURUM</strong><small>ИГРОВОЕ СООБЩЕСТВО</small></span>
         </button>
-        <div className="topbar-middle"><span className="topbar-label">{inMinecraft ? 'Minecraft' : 'Сообщество'}</span><span className="topbar-separator">/</span><span>{page === 'link' ? 'Привязка профиля' : page === 'guilds' ? 'Гильдии' : page === 'minecraft' ? 'Обзор' : page === 'servers' ? 'Серверы' : page === 'profile' ? 'Моя страница' : page === 'settings' ? 'Настройки' : 'Главная'}</span></div>
+        <div className="topbar-middle"><span className="topbar-label">{page === 'minecraft' ? 'Серверы' : inMinecraft ? 'Minecraft' : 'Сообщество'}</span><span className="topbar-separator">/</span><span>{page === 'link' ? 'Привязка профиля' : page === 'guilds' ? 'Гильдии' : page === 'minecraft' ? 'Minecraft Community' : page === 'servers' ? 'Серверы' : page === 'profile' ? 'Моя страница' : page === 'settings' ? 'Настройки' : 'Главная'}</span></div>
         <span className="preview-tag"><span />Эскиз интерфейса</span>
       </header>
 
@@ -69,14 +69,10 @@ function App() {
           </button>
           <nav aria-label="Основная навигация">
             {navigation.map(({ page: target, label, icon: Icon }) => (
-              <button key={label} className={`nav-item ${target && page === target ? 'active' : ''}`} disabled={!target} title={!target ? 'Раздел появится позже' : undefined} onClick={() => target && go(target)}>
-                <Icon size={19} strokeWidth={1.8} /><span>{label}</span>{!target && <em>Скоро</em>}{target && page === target && <span className="active-notch" />}
+              <button key={label} className={`nav-item ${target && (page === target || (target === 'servers' && inMinecraft)) ? 'active' : ''}`} disabled={!target} title={!target ? 'Раздел появится позже' : undefined} onClick={() => target && go(target)}>
+                <Icon size={19} strokeWidth={1.8} /><span>{label}</span>{!target && <em>Скоро</em>}{target && (page === target || (target === 'servers' && inMinecraft)) && <span className="active-notch" />}
               </button>
             ))}
-            {inMinecraft && <>
-              <button className={`nav-item ${page === 'minecraft' || page === 'link' ? 'active' : ''}`} onClick={() => go('minecraft')}><Gamepad2 size={19} strokeWidth={1.8} /><span>Minecraft</span>{(page === 'minecraft' || page === 'link') && <span className="active-notch" />}</button>
-              <button className={`nav-item ${page === 'guilds' ? 'active' : ''}`} onClick={() => go('guilds')}><UsersRound size={19} strokeWidth={1.8} /><span>Гильдии</span>{page === 'guilds' && <span className="active-notch" />}</button>
-            </>}
             <button className="nav-item" disabled title="Раздел появится позже"><BookOpen size={19} strokeWidth={1.8} /><span>Справка</span><em>Скоро</em></button>
           </nav>
           <div className="sidebar-bottom">
@@ -87,7 +83,7 @@ function App() {
         </aside>
 
         <main className="content">
-          {page === 'link' ? <LinkPage onBack={() => go('minecraft')} /> : page === 'profile' ? <ProfilePage go={go} /> : page === 'settings' ? <SettingsPage /> : page === 'guilds' ? <ConceptPage onBack={() => go('minecraft')} /> : page === 'minecraft' ? <MinecraftPage go={go} /> : <HomePage page={page} go={go} />}
+          {page === 'link' ? <LinkPage onBack={() => go('minecraft')} /> : page === 'profile' ? <ProfilePage go={go} /> : page === 'settings' ? <SettingsPage /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} /> : <HomePage page={page} go={go} />}
         </main>
       </div>
       {mobileNav && <button className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />}
@@ -140,6 +136,7 @@ function MinecraftPage({ go }: { go: (page: Page) => void }) {
   return <div className="game-page">
     <button className="back-link" onClick={() => go('servers')}><ArrowLeft size={18} /> К игровым мирам</button>
     <div className="page-intro"><div><h1>Minecraft Community</h1><p>Отдельное пространство Minecraft: профиль, гильдии и события этого мира.</p></div><div className="intro-meta"><span className="demo-dot" />Демонстрационные данные</div></div>
+    <MinecraftTabs current="minecraft" go={go} />
     <div className="game-grid">
       <section className="game-profile-card"><span className="game-icon"><Gamepad2 size={17} /></span><h2>Привяжи Minecraft-профиль</h2><p>После подтверждения здесь появятся твои игровые данные. Они будут видны только тебе, пока ты не изменишь приватность.</p><button className="button button-primary" onClick={() => go('link')}><Link2 size={17} /> Привязать профиль <ArrowRight size={16} /></button></section>
       <button className="game-guild-card" onClick={() => go('guilds')}><UsersRound size={25} strokeWidth={1.6} /><strong>Гильдии Minecraft</strong><span>Список, состав и события гильдий этого сервера.</span><span className="game-card-link">Открыть каталог <ArrowRight size={16} /></span></button>
@@ -157,8 +154,15 @@ function LinkPage({ onBack }: { onBack: () => void }) {
   return <div className="form-page"><button className="back-link" onClick={onBack}><ArrowLeft size={18} /> К Minecraft</button><div className="form-layout"><div className="form-hero"><h1>Привяжи Minecraft-профиль</h1><p>Сайт узнает, какой персонаж твой, только после подтверждения в игре. Один аккаунт сайта сможет хранить профили разных игр.</p><div className="link-steps"><div><span>1</span><p>Зайди на сервер и авторизуйся в игре.</p></div><div><span>2</span><p>Напиши <code>/aurumlink</code> или <code>/alink</code>.</p></div><div><span>3</span><p>Скопируй одноразовый код из чата и введи его здесь.</p></div></div><div className="secure-note"><ShieldCheck size={19} /> Код одноразовый и действует ограниченное время. Никому его не передавай.</div></div><div className="link-form-card"><span className="form-card-icon"><Link2 size={24} /></span><h2>Введи код из игры</h2><p>После подтверждения откроется твой Minecraft-профиль.</p><label htmlFor="link-code">ОДНОРАЗОВЫЙ КОД</label><input id="link-code" autoComplete="off" maxLength={12} value={code} onChange={event => setCode(event.target.value.toUpperCase())} placeholder="Например, AB12-CD34" /><button className="button button-primary form-submit" disabled>Привязать профиль <ArrowRight size={17} /></button><p className="form-disclaimer">Это визуальный прототип. Проверка кода будет доступна после подключения защищённого API.</p></div></div></div>;
 }
 
-function ConceptPage({ onBack }: { onBack: () => void }) {
-  return <div className="concept-page"><button className="back-link" onClick={onBack}><ArrowLeft size={18} /> К Minecraft</button><h1>Гильдии Minecraft</h1><p>Здесь появится список гильдий этого сервера, поиск и доступные тебе действия — с учётом приватности каждой гильдии.</p><div className="concept-card"><span><UsersRound size={25} /></span><div><strong>Раздел пока в разработке</strong><p>Это эскиз внешнего вида. Реальные данные и действия появятся после подключения защищённого API.</p></div></div></div>;
+function MinecraftTabs({ current, go }: { current: 'minecraft' | 'guilds'; go: (page: Page) => void }) {
+  return <nav className="game-tabs" aria-label="Разделы Minecraft">
+    <button className={current === 'minecraft' ? 'active' : ''} aria-current={current === 'minecraft' ? 'page' : undefined} onClick={() => go('minecraft')}>Обзор</button>
+    <button className={current === 'guilds' ? 'active' : ''} aria-current={current === 'guilds' ? 'page' : undefined} onClick={() => go('guilds')}>Гильдии</button>
+  </nav>;
+}
+
+function ConceptPage({ go }: { go: (page: Page) => void }) {
+  return <div className="concept-page"><button className="back-link" onClick={() => go('servers')}><ArrowLeft size={18} /> К игровым мирам</button><h1>Гильдии Minecraft</h1><p>Здесь появится список гильдий этого сервера, поиск и доступные тебе действия — с учётом приватности каждой гильдии.</p><MinecraftTabs current="guilds" go={go} /><div className="concept-card"><span><UsersRound size={25} /></span><div><strong>Раздел пока в разработке</strong><p>Это эскиз внешнего вида. Реальные данные и действия появятся после подключения защищённого API.</p></div></div></div>;
 }
 
 function SettingsPage() {

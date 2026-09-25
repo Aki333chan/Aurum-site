@@ -10,7 +10,7 @@ The first signed-in screen is a global portal before choosing a game. It must ex
 
 **First viewport:** Top identity bar, left navigation with avatar and nickname above larger rectangular controls, a Minecraft game card in the main column, shared feed below, and a compact orientation panel on the right. No global guild navigation. The server card carries abstract block-world geometry, not an invented screenshot or data.
 
-**Signature interaction:** A player opens Minecraft from its card, then sees Minecraft-only guild navigation and a route to link the profile. The one-time code form is intentionally non-submitting until the secure API exists. A lower-left theme toggle persists locally; logout stays disabled until real authentication exists.
+**Signature interaction:** A player opens Minecraft from its server card. The global sidebar keeps Servers selected; Overview and Guilds appear as tabs inside the Minecraft page, alongside a route to link the profile. The one-time code form is intentionally non-submitting until the secure API exists. A lower-left theme toggle persists locally; logout stays disabled until real authentication exists.
 
 **Visual grammar:** Inter, restrained dark neutrals, Aurum gold for game identity, panel violet for active navigation and primary actions; one consistent rounded control vocabulary. The same layout has a light theme. Useful focus states and mobile reflow. Reduced-motion preference is respected.
 
