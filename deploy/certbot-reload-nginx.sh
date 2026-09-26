@@ -1,0 +1,4 @@
+#!/bin/sh
+set -eu
+nginx -t >/dev/null
+systemctl reload nginx
