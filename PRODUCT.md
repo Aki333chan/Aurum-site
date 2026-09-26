@@ -45,7 +45,7 @@ Use the Aurum name and recognizable gold emblem. The existing staff panel uses a
 
 ## Evidence on Hand
 
-The existing panel in the `images` repository contains the Aurum emblem and Nocturne tokens. Companion already has a five-minute one-use web token mechanism, but a player-site link token must have its own purpose and stricter authentication boundary. AurumGuilds supports a guild list and three ranks (leader, officer, member). The repository now contains an email-authentication API and login/registration UI, but no live database, SMTP integration test, or deployment. The post-login screens still contain demonstration data, visibly labeled as such.
+The existing panel in the `images` repository contains the Aurum emblem and Nocturne tokens. Companion already has a five-minute one-use web token mechanism, but a player-site link token must have its own purpose and stricter authentication boundary. AurumGuilds supports a guild list and three ranks (leader, officer, member). Aurum Site is deployed at `aurumgg.ovh` with its own PostgreSQL, verified owner, admin-only settings and replaceable avatars. SMTP is not configured and public registration remains closed. Post-login game screens still contain demonstration data, visibly labeled as such.
 
 ## Product Principles
 
@@ -57,4 +57,4 @@ The existing panel in the `images` repository contains the Aurum emblem and Noct
 ## Open Decisions
 
 - Confirm whether the website starts only in Russian or launches with Russian, Polish, and English.
-- Confirm the revised navigation and game-specific layout after reviewing the next screenshots.
+- Define first release scope for global, game and guild posts; moderation and privacy must be ready before public posting opens.
