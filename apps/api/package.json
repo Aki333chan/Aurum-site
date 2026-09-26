@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "bootstrap:owner": "node src/bootstrap-owner.js",
     "test": "node --test test/*.test.js",
     "db:migrate": "auth migrate --config src/auth.js --yes"
   },

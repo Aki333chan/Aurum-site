@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { AuthPage } from './AuthPage';
 import { authClient } from './auth-client';
 import {
@@ -39,7 +39,7 @@ function App() {
   const [logoutError, setLogoutError] = useState('');
   const inMinecraft = page === 'minecraft' || page === 'guilds' || page === 'link';
   const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview');
-  const displayName = session?.user.name || 'AurumPlayer';
+  const displayName = session?.user.displayUsername || session?.user.username || session?.user.name || 'AurumPlayer';
 
   const go = (next: Page) => {
     setPage(next);
@@ -162,7 +162,7 @@ function MinecraftPage({ go }: { go: (page: Page) => void }) {
 }
 
 function ProfilePage({ go, name, email }: { go: (page: Page) => void; name: string; email?: string }) {
-  return <div className="profile-page"><h1>Моя страница</h1><p>Учётная запись Aurum и твой будущий Minecraft-профиль.</p><div className="profile-head"><span className="avatar profile-avatar">{name.charAt(0).toUpperCase()}</span><div><h2>{name}</h2><span>{email || 'Демонстрационный профиль'}</span></div></div><section className="settings-card"><div><h2>Игровые профили</h2><p>Minecraft пока не привязан. Подтверди профиль в игре, чтобы здесь появились твои данные.</p></div><button className="button button-primary" onClick={() => go('link')}>Привязать Minecraft <ArrowRight size={16} /></button></section></div>;
+  return <div className="profile-page"><h1>Моя страница</h1><p>Учётная запись Aurum и твой будущий Minecraft-профиль.</p><div className="profile-head"><span className="avatar profile-avatar">{name.charAt(0).toUpperCase()}</span><div><h2>{name}</h2><span>{email ? `Твой email: ${email} · виден только тебе` : 'Демонстрационный профиль'}</span></div></div><section className="settings-card"><div><h2>Игровые профили</h2><p>Minecraft пока не привязан. Подтверди профиль в игре, чтобы здесь появились твои данные.</p></div><button className="button button-primary" onClick={() => go('link')}>Привязать Minecraft <ArrowRight size={16} /></button></section></div>;
 }
 
 function LinkPage({ onBack }: { onBack: () => void }) {
@@ -182,7 +182,38 @@ function ConceptPage({ go }: { go: (page: Page) => void }) {
 }
 
 function SettingsPage() {
-  return <div className="settings-page"><h1>Настройки</h1><p>Тему можно переключить внизу левого меню. Остальные настройки аккаунта добавим поэтапно.</p><div className="settings-card muted-setting"><div><h2>Двухфакторная защита</h2><p>Позже здесь можно будет по желанию включить подтверждение входа. Оно не будет обязательным для игроков.</p></div><ShieldCheck size={19} /></div><div className="settings-card muted-setting"><div><h2>Профиль и приватность</h2><p>Здесь можно будет управлять видимостью игровых данных и комментариями.</p></div><ExternalLink size={18} /></div><div className="settings-card muted-setting"><div><h2>Связанные игры</h2><p>Пока готовим привязку Minecraft через одноразовый код.</p></div><HeartHandshake size={19} /></div></div>;
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+
+  const changePassword = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError('');
+    setNotice('');
+    if (newPassword !== confirmation) return setError('Новые пароли не совпадают.');
+    if (newPassword.length < 15 || newPassword.length > 128) return setError('Новый пароль должен содержать от 15 до 128 символов.');
+    if (newPassword === currentPassword) return setError('Новый пароль должен отличаться от текущего.');
+    setBusy(true);
+    try {
+      const { error: resultError } = await authClient.changePassword({ currentPassword, newPassword, revokeOtherSessions: true });
+      if (resultError) setError(resultError.status === 429 ? 'Слишком много попыток. Подожди и попробуй снова.' : 'Не удалось сменить пароль. Проверь текущий пароль.');
+      else {
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmation('');
+        setNotice('Пароль изменён. Другие сеансы завершены.');
+      }
+    } catch {
+      setError('Не удалось связаться с сервисом. Попробуй позже.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <div className="settings-page"><h1>Настройки</h1><p>Тему можно переключить внизу левого меню. Здесь же можно сменить пароль аккаунта.</p><section className="settings-card settings-password"><h2>Смена пароля</h2><p>После первого входа замени временный пароль. Новый пароль — от 15 до 128 символов.</p><form onSubmit={changePassword}><label>Текущий пароль<input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required disabled={busy} /></label><label>Новый пароль<input type="password" autoComplete="new-password" minLength={15} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required disabled={busy} /></label><label>Повтори новый пароль<input type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required disabled={busy} /></label><button className="button button-primary" type="submit" disabled={busy}>{busy ? 'Сохраняем…' : 'Сменить пароль'}</button></form>{error && <p className="auth-error" role="alert">{error}</p>}{notice && <p className="auth-notice" role="status">{notice}</p>}</section><div className="settings-card muted-setting"><div><h2>Двухфакторная защита</h2><p>Позже здесь можно будет по желанию включить подтверждение входа. Оно не будет обязательным для игроков.</p></div><ShieldCheck size={19} /></div><div className="settings-card muted-setting"><div><h2>Профиль и приватность</h2><p>Здесь можно будет управлять видимостью игровых данных и комментариями.</p></div><ExternalLink size={18} /></div><div className="settings-card muted-setting"><div><h2>Связанные игры</h2><p>Пока готовим привязку Minecraft через одноразовый код.</p></div><HeartHandshake size={19} /></div></div>;
 }
 
 export default App;

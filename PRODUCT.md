@@ -29,7 +29,8 @@ After signing in, players land on a global home with game cards and a shared com
 ## Capabilities and Constraints
 
 - Separate Git repository `aurum-site`; the existing Aurum Panel and Companion provide only narrowly scoped private bridges to game data. The staff panel's user accounts, cookies, and administrator token are not shared with players.
-- Email verification is required to complete registration and before the first login. Minecraft linking is separate and available only after signing in. Password recovery is included; optional player 2FA and required staff 2FA are later stages.
+- Email verification is required to complete public registration and before the first login. The one owner account may be bootstrapped as verified while SMTP is unavailable, with public registration disabled. Minecraft linking is separate and available only after signing in. Password recovery depends on SMTP; optional player 2FA and required staff 2FA are later stages.
+- Each player chooses a unique site nickname during registration. It is independent of the Minecraft nickname, which is shown separately after linking; email is not a public nickname.
 - Minecraft first; other games may be added later with separate identity-linking adapters.
 - Guild catalog lists every guild. Guild leaders may restrict member roster and extended information to members. Guild feeds may be readable publicly or by members; posting can be limited to selected in-game ranks.
 - Server news is published by authorized site staff. Player-profile comments can be open to signed-in users, limited to mutually accepted friends, or disabled, per linked game profile.

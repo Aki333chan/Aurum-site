@@ -16,19 +16,30 @@ export function readConfig(env = process.env) {
   const secret = required('BETTER_AUTH_SECRET');
   if (secret.length < 32) throw new Error('BETTER_AUTH_SECRET must have at least 32 characters');
 
-  const smtpPort = Number(required('SMTP_PORT'));
+  const flag = (key) => {
+    const value = required(key);
+    if (value !== 'true' && value !== 'false') throw new Error(`${key} must be true or false`);
+    return value === 'true';
+  };
+  const emailEnabled = flag('EMAIL_ENABLED');
+  const registrationEnabled = flag('REGISTRATION_ENABLED');
+  if (registrationEnabled && !emailEnabled) throw new Error('Registration requires email delivery');
+
+  const smtpPort = emailEnabled ? Number(required('SMTP_PORT')) : 0;
   const port = Number(env.PORT || 3007);
-  if (![smtpPort, port].every((value) => Number.isInteger(value) && value > 0 && value < 65536)) throw new Error('Invalid port');
+  if ((emailEnabled && (!Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535)) || !Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid port');
 
   return {
     publicUrl: publicUrl.origin,
     secret,
     databaseUrl: required('DATABASE_URL'),
-    smtpHost: required('SMTP_HOST'),
+    emailEnabled,
+    registrationEnabled,
+    smtpHost: emailEnabled ? required('SMTP_HOST') : '',
     smtpPort,
-    smtpUser: required('SMTP_USER'),
-    smtpPassword: required('SMTP_PASSWORD'),
-    smtpFrom: required('SMTP_FROM'),
+    smtpUser: emailEnabled ? required('SMTP_USER') : '',
+    smtpPassword: emailEnabled ? required('SMTP_PASSWORD') : '',
+    smtpFrom: emailEnabled ? required('SMTP_FROM') : '',
     port,
   };
 }

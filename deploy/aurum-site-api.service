@@ -1,0 +1,21 @@
+[Unit]
+Description=Aurum Site API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=aurumsite
+Group=aurumsite
+WorkingDirectory=/opt/aurum-site/apps/api
+ExecStart=/usr/bin/node src/server.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/opt/aurum-site /etc/aurum-site
+
+[Install]
+WantedBy=multi-user.target

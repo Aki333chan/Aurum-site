@@ -5,9 +5,15 @@ import { readConfig } from './config.js';
 
 const config = readConfig();
 const handleAuth = toNodeHandler(auth);
+const emailPaths = new Set(['/api/auth/request-password-reset', '/api/auth/forget-password', '/api/auth/send-verification-email']);
 
 const server = createServer(async (req, res) => {
   const path = new URL(req.url || '/', 'http://localhost').pathname;
+  if (!config.emailEnabled && emailPaths.has(path)) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.writeHead(503).end(JSON.stringify({ error: 'Email delivery is not configured' }));
+    return;
+  }
   if (path.startsWith('/api/auth/')) {
     try {
       await handleAuth(req, res);
@@ -23,6 +29,10 @@ const server = createServer(async (req, res) => {
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
   res.setHeader('Cache-Control', 'no-store');
+  if (path === '/api/site/config' && req.method === 'GET') {
+    res.writeHead(200).end(JSON.stringify({ registrationEnabled: config.registrationEnabled, emailEnabled: config.emailEnabled }));
+    return;
+  }
   if (path === '/api/health/ready' && req.method === 'GET') {
     try {
       await pool.query('SELECT 1');
