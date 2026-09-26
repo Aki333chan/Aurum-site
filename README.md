@@ -12,6 +12,8 @@
 
 Скриншоты: [вход 16:9](docs/previews/auth-login-16x9.png), [вход 9:16](docs/previews/auth-login-9x16.png), [регистрация с ником 16:9](docs/previews/auth-register-nickname-16x9.png), [9:16](docs/previews/auth-register-nickname-9x16.png), [светлая тема](docs/previews/auth-login-light-16x9.png). Внутри пока демонстрационные [главная](docs/previews/home-16x9.png) и [Minecraft](docs/previews/minecraft-16x9.png).
 
+Новый [эскиз профилей игрока, Minecraft и гильдии](docs/profile-concept.md) показывает вид для владельца и для другого вошедшего пользователя; он ещё не реализован на сайте.
+
 ## Локальный запуск
 
 Нужны Node.js 22+, pnpm 11 и отдельная PostgreSQL. SMTP нужен для открытия публичной регистрации, но не для входа заранее подтверждённого аккаунта.
