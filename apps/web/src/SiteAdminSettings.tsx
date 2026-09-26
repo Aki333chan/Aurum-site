@@ -87,6 +87,6 @@ export function SiteAdminSettings() {
       </div>
       <div className="admin-actions"><button type="submit" className="button button-primary" disabled={busy || !dirty}>Сохранить</button><button type="button" className="button button-quiet" disabled={busy || dirty || !settings.smtpHasPassword} onClick={testMail}>Проверить SMTP</button><span className="admin-mail-status">{settings.smtpTestedAt ? 'SMTP проверен' : 'SMTP не проверен'}</span></div>
     </form> : <p>Загружаем…</p>}
-    {message && <div className={`settings-toast ${message.error ? 'error' : ''}`} role={message.error ? 'alert' : 'status'}>{message.text}<button type="button" aria-label="Закрыть" onClick={() => setMessage(null)}><X size={16} /></button></div>}
+    {message && <div className={`settings-toast ${message.error ? 'error' : ''}`} role={message.error ? 'alert' : 'status'}><span className="settings-toast-text">{message.text}</span><button type="button" aria-label="Закрыть" onClick={() => setMessage(null)}><X size={18} /></button></div>}
   </section>;
 }

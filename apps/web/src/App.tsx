@@ -38,9 +38,12 @@ function App() {
   const [logoutError, setLogoutError] = useState('');
   const [siteMe, setSiteMe] = useState<{ admin: boolean; avatarUpdatedAt: string | null; avatarCooldownHours: number } | null>(null);
   const [maintenance, setMaintenance] = useState(false);
+  const [loginTransition, setLoginTransition] = useState(false);
   const inMinecraft = page === 'minecraft' || page === 'guilds' || page === 'link';
   const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview');
+  const transitionPreview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('transition');
   const displayName = session?.user.displayUsername || session?.user.username || session?.user.name || 'AurumPlayer';
+  const transition = (loginTransition || transitionPreview) && <LoginTransition key="login-transition" onDone={() => setLoginTransition(false)} />;
 
   useEffect(() => {
     if (!session?.user.id || preview) return;
@@ -72,8 +75,8 @@ function App() {
     else window.history.replaceState(null, '', '/login');
   };
 
-  if (isPending && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}><main className="auth-loading" role="status">Проверяем вход в Aurum…</main></div>;
-  if ((!session || maintenance) && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}><AuthPage lightTheme={lightTheme} toggleTheme={toggleTheme} /></div>;
+  if (isPending && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}><main className="auth-loading" role="status">Проверяем вход в Aurum…</main>{transition}</div>;
+  if ((!session || maintenance) && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}><AuthPage lightTheme={lightTheme} toggleTheme={toggleTheme} onLoginSuccess={() => setLoginTransition(true)} />{transition}</div>;
 
   return (
     <div className={`app ${lightTheme ? 'theme-light' : ''}`}>
@@ -116,8 +119,23 @@ function App() {
         </main>
       </div>
       {mobileNav && <button className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />}
+      {transition}
     </div>
   );
+}
+
+function LoginTransition({ onDone }: { onDone: () => void }) {
+  useEffect(() => {
+    const timer = window.setTimeout(onDone, 1600);
+    return () => window.clearTimeout(timer);
+  }, [onDone]);
+  return <div className="login-transition" role="status" aria-label="Вход выполнен, открываем Aurum" onAnimationEnd={(event) => { if (event.target === event.currentTarget) onDone(); }}>
+    <div className="login-transition-content" aria-hidden="true">
+      <span className="login-transition-mark"><img src="/aurum-logo.png" alt="" /></span>
+      <strong>AURUM</strong>
+      <small>ИГРОВОЕ СООБЩЕСТВО</small>
+    </div>
+  </div>;
 }
 
 function HomePage({ page, go }: { page: Page; go: (page: Page) => void }) {

@@ -23,7 +23,7 @@ function errorMessage(error: { code?: string; status?: number } | null | undefin
   return 'Сервис авторизации сейчас недоступен или запрос не удался. Попробуй позже.';
 }
 
-export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; toggleTheme: () => void }) {
+export function AuthPage({ lightTheme, toggleTheme, onLoginSuccess }: { lightTheme: boolean; toggleTheme: () => void; onLoginSuccess: () => void }) {
   const [mode, setMode] = useState<Mode>(modeFromPath);
   const [email, setEmail] = useState('');
   const [nickname, setNickname] = useState('');
@@ -102,7 +102,7 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
       } else if (mode === 'login') {
         const { error: resultError } = await authClient.signIn.email({ email, password });
         if (resultError) setError(errorMessage(resultError));
-        else window.history.replaceState(null, '', '/');
+        else { window.history.replaceState(null, '', '/'); onLoginSuccess(); }
       } else if (mode === 'verify') {
         const { error: resultError } = await authClient.sendVerificationEmail({ email, callbackURL: '/login?verified=1' });
         if (resultError && (!resultError.status || resultError.status === 429 || resultError.status >= 500)) setError(errorMessage(resultError));
