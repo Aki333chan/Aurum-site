@@ -126,7 +126,7 @@ function App() {
 
 function LoginTransition({ onDone }: { onDone: () => void }) {
   useEffect(() => {
-    const timer = window.setTimeout(onDone, 1600);
+    const timer = window.setTimeout(onDone, 2400);
     return () => window.clearTimeout(timer);
   }, [onDone]);
   return <div className="login-transition" role="status" aria-label="Вход выполнен, открываем Aurum" onAnimationEnd={(event) => { if (event.target === event.currentTarget) onDone(); }}>
