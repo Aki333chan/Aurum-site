@@ -4,4 +4,6 @@ dist/
 .env.*
 !.env.example
 .impeccable/
+.cache/
+.local/
 *.tsbuildinfo
