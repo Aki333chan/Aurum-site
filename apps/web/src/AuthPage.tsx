@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowRight, Eye, EyeOff, Gamepad2, Link2, Moon, Sun } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Gamepad2, Moon, Sun } from 'lucide-react';
 import { authClient } from './auth-client';
 
 type Mode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
@@ -147,7 +147,6 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
         <h1>Твоё место<br />в Aurum.</h1>
         <span className="auth-game"><Gamepad2 size={17} /> Minecraft Community</span>
         <p>Новости, гильдии и игровые профили в одном месте.</p>
-        <div className="auth-next"><Link2 size={19} /><span>Minecraft привяжешь позже через <strong>/aurumlink</strong>.</span></div>
       </section>
 
       <section className="auth-panel" aria-labelledby="auth-title">
@@ -172,6 +171,5 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
         </div>
       </section>
     </main>
-    <footer className="auth-footer">Aurum Site · Minecraft Community</footer>
   </div>;
 }
