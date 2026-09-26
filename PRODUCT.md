@@ -29,7 +29,7 @@ After signing in, players land on a global home with game cards and a shared com
 ## Capabilities and Constraints
 
 - Separate Git repository `aurum-site`; the existing Aurum Panel and Companion provide only narrowly scoped private bridges to game data. The staff panel's user accounts, cookies, and administrator token are not shared with players.
-- Email registration and verification; password recovery; optional player 2FA and required staff 2FA.
+- Email verification is required to complete registration and before the first login. Minecraft linking is separate and available only after signing in. Password recovery is included; optional player 2FA and required staff 2FA are later stages.
 - Minecraft first; other games may be added later with separate identity-linking adapters.
 - Guild catalog lists every guild. Guild leaders may restrict member roster and extended information to members. Guild feeds may be readable publicly or by members; posting can be limited to selected in-game ranks.
 - Server news is published by authorized site staff. Player-profile comments can be open to signed-in users, limited to mutually accepted friends, or disabled, per linked game profile.
@@ -44,7 +44,7 @@ Use the Aurum name and recognizable gold emblem. The existing staff panel uses a
 
 ## Evidence on Hand
 
-The existing panel in the `images` repository contains the Aurum emblem and Nocturne tokens. Companion already has a five-minute one-use web token mechanism, but a player-site link token must have its own purpose and stricter authentication boundary. AurumGuilds supports a guild list and three ranks (leader, officer, member). The new site repository currently has no implementation or real site content. Any preview data must be labeled as demonstration data.
+The existing panel in the `images` repository contains the Aurum emblem and Nocturne tokens. Companion already has a five-minute one-use web token mechanism, but a player-site link token must have its own purpose and stricter authentication boundary. AurumGuilds supports a guild list and three ranks (leader, officer, member). The repository now contains an email-authentication API and login/registration UI, but no live database, SMTP integration test, or deployment. The post-login screens still contain demonstration data, visibly labeled as such.
 
 ## Product Principles
 

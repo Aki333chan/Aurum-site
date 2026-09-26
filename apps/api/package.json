@@ -1,0 +1,21 @@
+{
+  "name": "@aurum-site/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test test/*.test.js",
+    "db:migrate": "auth migrate --config src/auth.js --yes"
+  },
+  "dependencies": {
+    "better-auth": "1.7.6",
+    "dotenv": "16.6.1",
+    "nodemailer": "10.0.10",
+    "pg": "8.23.0"
+  },
+  "devDependencies": {
+    "auth": "1.7.6"
+  }
+}

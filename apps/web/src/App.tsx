@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { AuthPage } from './AuthPage';
+import { authClient } from './auth-client';
 import {
   ArrowLeft,
   ArrowRight,
@@ -30,10 +32,14 @@ const navigation = [
 ] as const;
 
 function App() {
+  const { data: session, isPending } = authClient.useSession();
   const [page, setPage] = useState<Page>('home');
   const [mobileNav, setMobileNav] = useState(false);
   const [lightTheme, setLightTheme] = useState(() => localStorage.getItem('aurum-site-theme') === 'light');
+  const [logoutError, setLogoutError] = useState('');
   const inMinecraft = page === 'minecraft' || page === 'guilds' || page === 'link';
+  const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview');
+  const displayName = session?.user.name || 'AurumPlayer';
 
   const go = (next: Page) => {
     setPage(next);
@@ -46,6 +52,15 @@ function App() {
     setLightTheme(next);
     localStorage.setItem('aurum-site-theme', next ? 'light' : 'dark');
   };
+
+  const signOut = async () => {
+    const { error } = await authClient.signOut();
+    if (error) setLogoutError('Не удалось выйти. Попробуй ещё раз.');
+    else window.history.replaceState(null, '', '/login');
+  };
+
+  if (isPending && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}><main className="auth-loading" role="status">Проверяем вход в Aurum…</main></div>;
+  if (!session && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}><AuthPage lightTheme={lightTheme} toggleTheme={toggleTheme} /></div>;
 
   return (
     <div className={`app ${lightTheme ? 'theme-light' : ''}`}>
@@ -64,8 +79,8 @@ function App() {
       <div className="shell">
         <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
           <div className="mobile-sidebar-head"><span>Меню</span><button className="icon-button" aria-label="Закрыть меню" onClick={() => setMobileNav(false)}><X size={20} /></button></div>
-          <button className={`sidebar-account ${page === 'profile' ? 'active' : ''}`} onClick={() => go('profile')} aria-label="Открыть мою страницу — AurumPlayer">
-            <span className="avatar">A</span><span className="account-copy"><strong>AurumPlayer</strong><small>Моя страница · демо</small></span>
+          <button className={`sidebar-account ${page === 'profile' ? 'active' : ''}`} onClick={() => go('profile')} aria-label={`Открыть мою страницу — ${displayName}`}>
+            <span className="avatar">{displayName.charAt(0).toUpperCase()}</span><span className="account-copy"><strong>{displayName}</strong><small>Моя страница</small></span>
           </button>
           <nav aria-label="Основная навигация">
             {navigation.map(({ page: target, label, icon: Icon }) => (
@@ -78,12 +93,13 @@ function App() {
           <div className="sidebar-bottom">
             <button className={`nav-item ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')}><Settings2 size={19} strokeWidth={1.8} /><span>Настройки</span></button>
             <button className="nav-item theme-button" aria-label="Светлая тема" aria-pressed={lightTheme} onClick={toggleTheme}>{lightTheme ? <Moon size={19} strokeWidth={1.8} /> : <Sun size={19} strokeWidth={1.8} />}<span>Светлая тема</span><span className={`theme-switch ${lightTheme ? 'on' : ''}`} aria-hidden="true" /></button>
-            <button className="nav-item logout-button" disabled title="Выход станет доступен после подключения авторизации"><LogOut size={19} strokeWidth={1.8} /><span>Выйти</span></button>
+            <button className="nav-item logout-button" onClick={signOut} disabled={preview}><LogOut size={19} strokeWidth={1.8} /><span>Выйти</span></button>
+            {logoutError && <p className="sidebar-error" role="alert">{logoutError}</p>}
           </div>
         </aside>
 
         <main className="content">
-          {page === 'link' ? <LinkPage onBack={() => go('minecraft')} /> : page === 'profile' ? <ProfilePage go={go} /> : page === 'settings' ? <SettingsPage /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} /> : <HomePage page={page} go={go} />}
+          {page === 'link' ? <LinkPage onBack={() => go('minecraft')} /> : page === 'profile' ? <ProfilePage go={go} name={displayName} email={session?.user.email} /> : page === 'settings' ? <SettingsPage /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} /> : <HomePage page={page} go={go} />}
         </main>
       </div>
       {mobileNav && <button className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />}
@@ -145,8 +161,8 @@ function MinecraftPage({ go }: { go: (page: Page) => void }) {
   </div>;
 }
 
-function ProfilePage({ go }: { go: (page: Page) => void }) {
-  return <div className="profile-page"><h1>Моя страница</h1><p>Одна учётная запись для игровых профилей разных миров Aurum.</p><div className="profile-head"><span className="avatar profile-avatar">A</span><div><h2>AurumPlayer</h2><span>Демонстрационный профиль сайта</span></div></div><section className="settings-card"><div><h2>Игровые профили</h2><p>Minecraft пока не привязан. Подтверди профиль в игре, чтобы здесь появились твои данные.</p></div><button className="button button-primary" onClick={() => go('link')}>Привязать Minecraft <ArrowRight size={16} /></button></section></div>;
+function ProfilePage({ go, name, email }: { go: (page: Page) => void; name: string; email?: string }) {
+  return <div className="profile-page"><h1>Моя страница</h1><p>Учётная запись Aurum и твой будущий Minecraft-профиль.</p><div className="profile-head"><span className="avatar profile-avatar">{name.charAt(0).toUpperCase()}</span><div><h2>{name}</h2><span>{email || 'Демонстрационный профиль'}</span></div></div><section className="settings-card"><div><h2>Игровые профили</h2><p>Minecraft пока не привязан. Подтверди профиль в игре, чтобы здесь появились твои данные.</p></div><button className="button button-primary" onClick={() => go('link')}>Привязать Minecraft <ArrowRight size={16} /></button></section></div>;
 }
 
 function LinkPage({ onBack }: { onBack: () => void }) {
@@ -166,7 +182,7 @@ function ConceptPage({ go }: { go: (page: Page) => void }) {
 }
 
 function SettingsPage() {
-  return <div className="settings-page"><h1>Настройки</h1><p>Тему можно переключить внизу левого меню. Остальные настройки аккаунта появятся после подключения сайта.</p><div className="settings-card muted-setting"><div><h2>Профиль и приватность</h2><p>Здесь можно будет управлять видимостью игровых данных, комментариями и защитой аккаунта.</p></div><ExternalLink size={18} /></div><div className="settings-card muted-setting"><div><h2>Связанные игры</h2><p>Просмотр и управление привязанными игровыми профилями.</p></div><HeartHandshake size={19} /></div></div>;
+  return <div className="settings-page"><h1>Настройки</h1><p>Тему можно переключить внизу левого меню. Остальные настройки аккаунта добавим поэтапно.</p><div className="settings-card muted-setting"><div><h2>Двухфакторная защита</h2><p>Позже здесь можно будет по желанию включить подтверждение входа. Оно не будет обязательным для игроков.</p></div><ShieldCheck size={19} /></div><div className="settings-card muted-setting"><div><h2>Профиль и приватность</h2><p>Здесь можно будет управлять видимостью игровых данных и комментариями.</p></div><ExternalLink size={18} /></div><div className="settings-card muted-setting"><div><h2>Связанные игры</h2><p>Пока готовим привязку Minecraft через одноразовый код.</p></div><HeartHandshake size={19} /></div></div>;
 }
 
 export default App;

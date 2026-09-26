@@ -5,6 +5,9 @@
   "engines": { "node": ">=22" },
   "scripts": {
     "dev": "pnpm --filter @aurum-site/web dev",
-    "build": "pnpm --filter @aurum-site/web build"
+    "build": "pnpm --filter @aurum-site/web build",
+    "api:dev": "pnpm --filter @aurum-site/api dev",
+    "api:start": "pnpm --filter @aurum-site/api start",
+    "api:test": "pnpm --filter @aurum-site/api test"
   }
 }
