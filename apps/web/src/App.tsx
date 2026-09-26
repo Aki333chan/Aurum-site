@@ -107,7 +107,7 @@ function App() {
 
 function HomePage({ page, go }: { page: Page; go: (page: Page) => void }) {
   const heading = page === 'servers' ? 'Игровые миры' : 'Главная сообщества';
-  const subheading = page === 'servers' ? 'Выбери игру, чтобы открыть её пространство и свой профиль.' : 'Выбери игру или загляни в общую ленту сообщества.';
+  const subheading = page === 'servers' ? 'Выбери игру.' : 'Игры и новости.';
   return (
     <>
       <div className="page-intro">
@@ -124,7 +124,7 @@ function HomePage({ page, go }: { page: Page; go: (page: Page) => void }) {
               <div className="server-content">
                 <span className="game-label"><span className="game-icon"><Gamepad2 size={16} /></span>MINECRAFT <span className="game-label-line" /> PAPER</span>
                 <h3>Minecraft<br />Community</h3>
-                <p>Мир, гильдии и твоя история игры — в одном профиле.</p>
+                <p>Профиль и гильдии.</p>
                 <div className="server-actions"><button className="button button-primary" onClick={() => go('minecraft')}>Открыть Minecraft <ArrowRight size={16} /></button><button className="button button-quiet" onClick={() => go('link')}><Link2 size={16} /> Привязать профиль</button></div>
               </div>
               <span className="server-status"><span />Профиль не привязан</span>
@@ -133,15 +133,14 @@ function HomePage({ page, go }: { page: Page; go: (page: Page) => void }) {
 
           {page === 'home' && <section className="section lower-section">
             <div className="section-heading"><h2>Лента сообщества</h2></div>
-            <article className="news-card"><div className="news-symbol"><Newspaper size={23} strokeWidth={1.6} /></div><div><div className="news-meta">ОБЩИЕ НОВОСТИ <span /> ПРИМЕР ЗАПИСИ</div><h3>Здесь появятся новости сообщества</h3><p>Объявления и события разных игровых миров будут собраны в одной ленте.</p></div></article>
+            <article className="news-card"><div className="news-symbol"><Newspaper size={23} strokeWidth={1.6} /></div><div><div className="news-meta">ОБЩИЕ НОВОСТИ <span /> ПРИМЕР ЗАПИСИ</div><h3>Здесь появятся новости сообщества</h3></div></article>
           </section>}
         </div>
 
         <aside className="right-column">
-          <section className="welcome-panel"><div className="panel-icon"><Compass size={22} strokeWidth={1.6} /></div><h2>Все игры —<br />в одном месте</h2><p>Выбирай игровой мир, привязывай его профиль и открывай возможности именно этого сервера.</p><div className="step-list"><div><span>01</span><p>Выбери игру</p></div><div><span>02</span><p>Привяжи игровой профиль</p></div><div><span>03</span><p>Открой личную страницу</p></div></div><button className="panel-link" onClick={() => go('minecraft')}>Посмотреть Minecraft <ArrowRight size={16} /></button></section>
+          <section className="welcome-panel"><div className="panel-icon"><Compass size={22} strokeWidth={1.6} /></div><h2>Все игры —<br />в одном месте</h2><div className="step-list"><div><span>01</span><p>Выбери игру</p></div><div><span>02</span><p>Привяжи профиль</p></div><div><span>03</span><p>Открой свою страницу</p></div></div><button className="panel-link" onClick={() => go('minecraft')}>Посмотреть Minecraft <ArrowRight size={16} /></button></section>
         </aside>
       </div>
-      <div className="footer-note"><span>AURUM</span> · Эскиз главной страницы. Содержимое и действия до подключения API — демонстрационные.</div>
     </>
   );
 }
@@ -149,13 +148,13 @@ function HomePage({ page, go }: { page: Page; go: (page: Page) => void }) {
 function MinecraftPage({ go }: { go: (page: Page) => void }) {
   return <div className="game-page">
     <button className="back-link" onClick={() => go('servers')}><ArrowLeft size={18} /> К игровым мирам</button>
-    <div className="page-intro"><div><h1>Minecraft Community</h1><p>Отдельное пространство Minecraft: профиль, гильдии и события этого мира.</p></div><div className="intro-meta"><span className="demo-dot" />Демонстрационные данные</div></div>
+    <div className="page-intro"><div><h1>Minecraft Community</h1><p>Профиль, гильдии, события.</p></div><div className="intro-meta"><span className="demo-dot" />Демонстрационные данные</div></div>
     <MinecraftTabs current="minecraft" go={go} />
     <div className="game-grid">
-      <section className="game-profile-card"><span className="game-icon"><Gamepad2 size={17} /></span><h2>Привяжи Minecraft-профиль</h2><p>После подтверждения здесь появятся твои игровые данные. Они будут видны только тебе, пока ты не изменишь приватность.</p><button className="button button-primary" onClick={() => go('link')}><Link2 size={17} /> Привязать профиль <ArrowRight size={16} /></button></section>
-      <button className="game-guild-card" onClick={() => go('guilds')}><UsersRound size={25} strokeWidth={1.6} /><strong>Гильдии Minecraft</strong><span>Список, состав и события гильдий этого сервера.</span><span className="game-card-link">Открыть каталог <ArrowRight size={16} /></span></button>
+      <section className="game-profile-card"><span className="game-icon"><Gamepad2 size={17} /></span><h2>Привяжи Minecraft-профиль</h2><p>Здесь появятся игровые данные.</p><button className="button button-primary" onClick={() => go('link')}><Link2 size={17} /> Привязать профиль <ArrowRight size={16} /></button></section>
+      <button className="game-guild-card" onClick={() => go('guilds')}><UsersRound size={25} strokeWidth={1.6} /><strong>Гильдии Minecraft</strong><span>Список и состав.</span><span className="game-card-link">Открыть каталог <ArrowRight size={16} /></span></button>
     </div>
-    <section className="section lower-section"><div className="section-heading"><h2>Лента Minecraft</h2></div><article className="news-card"><div className="news-symbol"><Newspaper size={23} strokeWidth={1.6} /></div><div><div className="news-meta">MINECRAFT <span /> ПРИМЕР ЗАПИСИ</div><h3>Здесь появятся новости Minecraft</h3><p>В этом разделе будут только события выбранной игры.</p></div></article></section>
+    <section className="section lower-section"><div className="section-heading"><h2>Лента Minecraft</h2></div><article className="news-card"><div className="news-symbol"><Newspaper size={23} strokeWidth={1.6} /></div><div><div className="news-meta">MINECRAFT <span /> ПРИМЕР ЗАПИСИ</div><h3>Здесь появятся новости Minecraft</h3></div></article></section>
   </div>;
 }
 
@@ -165,7 +164,7 @@ function ProfilePage({ go, name, email }: { go: (page: Page) => void; name: stri
 
 function LinkPage({ onBack }: { onBack: () => void }) {
   const [code, setCode] = useState('');
-  return <div className="form-page"><button className="back-link" onClick={onBack}><ArrowLeft size={18} /> К Minecraft</button><div className="form-layout"><div className="form-hero"><h1>Привяжи Minecraft-профиль</h1><p>Сайт узнает, какой персонаж твой, только после подтверждения в игре. Один аккаунт сайта сможет хранить профили разных игр.</p><div className="link-steps"><div><span>1</span><p>Зайди на сервер и авторизуйся в игре.</p></div><div><span>2</span><p>Напиши <code>/aurumlink</code> или <code>/alink</code>.</p></div><div><span>3</span><p>Скопируй одноразовый код из чата и введи его здесь.</p></div></div><div className="secure-note"><ShieldCheck size={19} /> Код одноразовый и действует ограниченное время. Никому его не передавай.</div></div><div className="link-form-card"><span className="form-card-icon"><Link2 size={24} /></span><h2>Введи код из игры</h2><p>После подтверждения откроется твой Minecraft-профиль.</p><label htmlFor="link-code">ОДНОРАЗОВЫЙ КОД</label><input id="link-code" autoComplete="off" maxLength={12} value={code} onChange={event => setCode(event.target.value.toUpperCase())} placeholder="Например, AB12-CD34" /><button className="button button-primary form-submit" disabled>Привязать профиль <ArrowRight size={17} /></button><p className="form-disclaimer">Это визуальный прототип. Проверка кода будет доступна после подключения защищённого API.</p></div></div></div>;
+  return <div className="form-page"><button className="back-link" onClick={onBack}><ArrowLeft size={18} /> К Minecraft</button><div className="form-layout"><div className="form-hero"><h1>Привяжи Minecraft-профиль</h1><div className="link-steps"><div><span>1</span><p>Зайди на сервер.</p></div><div><span>2</span><p>Напиши <code>/aurumlink</code> или <code>/alink</code>.</p></div><div><span>3</span><p>Введи код из чата здесь.</p></div></div><div className="secure-note"><ShieldCheck size={19} /> Никому не передавай код.</div></div><div className="link-form-card"><span className="form-card-icon"><Link2 size={24} /></span><h2>Код из игры</h2><label htmlFor="link-code">ОДНОРАЗОВЫЙ КОД</label><input id="link-code" autoComplete="off" maxLength={12} value={code} onChange={event => setCode(event.target.value.toUpperCase())} placeholder="Например, AB12-CD34" /><button className="button button-primary form-submit" disabled>Привязать профиль <ArrowRight size={17} /></button><p className="form-disclaimer">Привязка пока недоступна.</p></div></div></div>;
 }
 
 function MinecraftTabs({ current, go }: { current: 'minecraft' | 'guilds'; go: (page: Page) => void }) {
@@ -176,7 +175,7 @@ function MinecraftTabs({ current, go }: { current: 'minecraft' | 'guilds'; go: (
 }
 
 function ConceptPage({ go }: { go: (page: Page) => void }) {
-  return <div className="concept-page"><button className="back-link" onClick={() => go('servers')}><ArrowLeft size={18} /> К игровым мирам</button><h1>Гильдии Minecraft</h1><p>Здесь появится список гильдий этого сервера, поиск и доступные тебе действия — с учётом приватности каждой гильдии.</p><MinecraftTabs current="guilds" go={go} /><div className="concept-card"><span><UsersRound size={25} /></span><div><strong>Раздел пока в разработке</strong><p>Это эскиз внешнего вида. Реальные данные и действия появятся после подключения защищённого API.</p></div></div></div>;
+  return <div className="concept-page"><button className="back-link" onClick={() => go('servers')}><ArrowLeft size={18} /> К игровым мирам</button><h1>Гильдии Minecraft</h1><MinecraftTabs current="guilds" go={go} /><div className="concept-card"><span><UsersRound size={25} /></span><div><strong>Раздел пока в разработке</strong></div></div></div>;
 }
 
 function SettingsPage() {
