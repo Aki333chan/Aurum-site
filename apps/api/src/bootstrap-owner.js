@@ -1,9 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { createAuth, pool } from './auth.js';
 import { readConfig } from './config.js';
+import { initSiteData } from './site-data.js';
 
 try {
   const config = readConfig();
+  await initSiteData();
   if (config.registrationEnabled || config.emailEnabled) throw new Error('Bootstrap is only allowed before public registration and email delivery are enabled');
 
   const email = process.env.BOOTSTRAP_EMAIL?.trim().toLowerCase();
@@ -21,6 +23,7 @@ try {
 
   const verified = await pool.query('UPDATE "user" SET "emailVerified" = TRUE WHERE id = $1 AND email = $2 RETURNING id', [userId, email]);
   if (verified.rowCount !== 1) throw new Error('Account was created but could not be marked verified');
+  await pool.query('INSERT INTO site_admin (user_id) VALUES ($1)', [userId]);
   console.log(`Owner account ready: ${email}`);
   console.log(`Temporary password (shown once): ${password}`);
   console.log('Sign in and change this password in Settings immediately.');

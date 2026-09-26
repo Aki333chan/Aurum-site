@@ -1,6 +1,7 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { AuthPage } from './AuthPage';
 import { authClient } from './auth-client';
+import { SiteAdminSettings } from './SiteAdminSettings';
 import {
   ArrowLeft,
   ArrowRight,
@@ -35,9 +36,23 @@ function App() {
   const [mobileNav, setMobileNav] = useState(false);
   const [lightTheme, setLightTheme] = useState(() => localStorage.getItem('aurum-site-theme') === 'light');
   const [logoutError, setLogoutError] = useState('');
+  const [siteMe, setSiteMe] = useState<{ admin: boolean; avatarUpdatedAt: string | null; avatarCooldownHours: number } | null>(null);
+  const [maintenance, setMaintenance] = useState(false);
   const inMinecraft = page === 'minecraft' || page === 'guilds' || page === 'link';
   const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview');
   const displayName = session?.user.displayUsername || session?.user.username || session?.user.name || 'AurumPlayer';
+
+  useEffect(() => {
+    if (!session?.user.id || preview) return;
+    let active = true;
+    setSiteMe(null);
+    setMaintenance(false);
+    fetch('/api/site/me', { cache: 'no-store' }).then(async (response) => {
+      if (response.status === 503) { if (active) setMaintenance(true); return; }
+      if (response.ok && active) { setSiteMe(await response.json()); setMaintenance(false); }
+    }).catch(() => {});
+    return () => { active = false; };
+  }, [session?.user.id, preview]);
 
   const go = (next: Page) => {
     setPage(next);
@@ -58,7 +73,7 @@ function App() {
   };
 
   if (isPending && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}><main className="auth-loading" role="status">Проверяем вход в Aurum…</main></div>;
-  if (!session && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}><AuthPage lightTheme={lightTheme} toggleTheme={toggleTheme} /></div>;
+  if ((!session || maintenance) && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}><AuthPage lightTheme={lightTheme} toggleTheme={toggleTheme} /></div>;
 
   return (
     <div className={`app ${lightTheme ? 'theme-light' : ''}`}>
@@ -78,7 +93,7 @@ function App() {
         <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
           <div className="mobile-sidebar-head"><span>Меню</span><button className="icon-button" aria-label="Закрыть меню" onClick={() => setMobileNav(false)}><X size={20} /></button></div>
           <button className={`sidebar-account ${page === 'profile' ? 'active' : ''}`} onClick={() => go('profile')} aria-label={`Открыть мою страницу — ${displayName}`}>
-            <span className="avatar">{displayName.charAt(0).toUpperCase()}</span><span className="account-copy"><strong>{displayName}</strong><small>Моя страница</small></span>
+            <Avatar name={displayName} version={siteMe?.avatarUpdatedAt} /><span className="account-copy"><strong>{displayName}</strong><small>Моя страница</small></span>
           </button>
           <nav aria-label="Основная навигация">
             {navigation.map(({ page: target, label, icon: Icon }) => (
@@ -97,7 +112,7 @@ function App() {
         </aside>
 
         <main className="content">
-          {page === 'link' ? <LinkPage onBack={() => go('minecraft')} /> : page === 'profile' ? <ProfilePage go={go} name={displayName} email={session?.user.email} /> : page === 'settings' ? <SettingsPage /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} /> : <HomePage page={page} go={go} />}
+          {page === 'link' ? <LinkPage onBack={() => go('minecraft')} /> : page === 'profile' ? <ProfilePage go={go} name={displayName} email={session?.user.email} avatarVersion={siteMe?.avatarUpdatedAt} /> : page === 'settings' ? <SettingsPage siteMe={siteMe} onAvatarUpdate={(avatarUpdatedAt) => setSiteMe((current) => current && { ...current, avatarUpdatedAt })} /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} /> : <HomePage page={page} go={go} />}
         </main>
       </div>
       {mobileNav && <button className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />}
@@ -158,8 +173,12 @@ function MinecraftPage({ go }: { go: (page: Page) => void }) {
   </div>;
 }
 
-function ProfilePage({ go, name, email }: { go: (page: Page) => void; name: string; email?: string }) {
-  return <div className="profile-page"><h1>Моя страница</h1><div className="profile-head"><span className="avatar profile-avatar">{name.charAt(0).toUpperCase()}</span><div><h2>{name}</h2><span>{email ? `Email: ${email} · виден только тебе` : 'Демонстрационный профиль'}</span></div></div><section className="settings-card"><div><h2>Игровые профили</h2><p>Minecraft пока не привязан.</p></div><button className="button button-primary" onClick={() => go('link')}>Привязать Minecraft <ArrowRight size={16} /></button></section></div>;
+function Avatar({ name, version, large = false }: { name: string; version?: string | null; large?: boolean }) {
+  return <span className={`avatar ${large ? 'profile-avatar' : ''}`}>{version ? <img src={`/api/site/me/avatar?v=${encodeURIComponent(version)}`} alt="" /> : name.charAt(0).toUpperCase()}</span>;
+}
+
+function ProfilePage({ go, name, email, avatarVersion }: { go: (page: Page) => void; name: string; email?: string; avatarVersion?: string | null }) {
+  return <div className="profile-page"><h1>Моя страница</h1><div className="profile-head"><Avatar name={name} version={avatarVersion} large /><div><h2>{name}</h2><span>{email ? `Email: ${email} · виден только тебе` : 'Демонстрационный профиль'}</span></div></div><section className="settings-card"><div><h2>Игровые профили</h2><p>Minecraft пока не привязан.</p></div><button className="button button-primary" onClick={() => go('link')}>Привязать Minecraft <ArrowRight size={16} /></button></section></div>;
 }
 
 function LinkPage({ onBack }: { onBack: () => void }) {
@@ -178,13 +197,38 @@ function ConceptPage({ go }: { go: (page: Page) => void }) {
   return <div className="concept-page"><button className="back-link" onClick={() => go('servers')}><ArrowLeft size={18} /> К игровым мирам</button><h1>Гильдии Minecraft</h1><MinecraftTabs current="guilds" go={go} /><div className="concept-card"><span><UsersRound size={25} /></span><div><strong>Раздел пока в разработке</strong></div></div></div>;
 }
 
-function SettingsPage() {
+function SettingsPage({ siteMe, onAvatarUpdate }: { siteMe: { admin: boolean; avatarUpdatedAt: string | null; avatarCooldownHours: number } | null; onAvatarUpdate: (value: string) => void }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarMessage, setAvatarMessage] = useState('');
+  const [avatarError, setAvatarError] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const nextAvatarAt = siteMe?.avatarUpdatedAt ? Date.parse(siteMe.avatarUpdatedAt) + siteMe.avatarCooldownHours * 3600_000 : 0;
+  useEffect(() => {
+    if (nextAvatarAt <= now) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    return () => window.clearInterval(timer);
+  }, [nextAvatarAt, now]);
+
+  const uploadAvatar = async (file?: File) => {
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 2_000_000) { setAvatarError(true); return setAvatarMessage('Выбери JPG, PNG или WebP до 2 МБ.'); }
+    if (Date.now() < nextAvatarAt) { setAvatarError(true); return setAvatarMessage('Сменить аватар можно после окончания ожидания.'); }
+    setAvatarBusy(true);
+    setAvatarMessage('');
+    try {
+      const response = await fetch('/api/site/me/avatar', { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+      const result = await response.json();
+      if (!response.ok) { setAvatarError(true); setAvatarMessage(response.status === 429 ? 'Смена аватара пока недоступна.' : 'Не удалось загрузить изображение.'); }
+      else { onAvatarUpdate(result.avatarUpdatedAt); setNow(Date.now()); setAvatarError(false); setAvatarMessage('Аватар обновлён.'); }
+    } catch { setAvatarError(true); setAvatarMessage('Не удалось загрузить изображение.'); }
+    finally { setAvatarBusy(false); }
+  };
 
   const changePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -212,6 +256,12 @@ function SettingsPage() {
 
   return <div className="settings-page">
     <h1>Настройки</h1>
+    {siteMe?.admin && <SiteAdminSettings />}
+    <section className="settings-card avatar-settings">
+      <div><h2>Аватар</h2><p>{nextAvatarAt > now ? `Следующая смена: ${new Date(nextAvatarAt).toLocaleString('ru-RU')}` : 'JPG, PNG или WebP · до 2 МБ'}</p></div>
+      <label className="button button-quiet avatar-upload">{avatarBusy ? 'Загружаем…' : 'Выбрать фото'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={avatarBusy || nextAvatarAt > now} onChange={(event) => { void uploadAvatar(event.target.files?.[0]); event.target.value = ''; }} /></label>
+      {avatarMessage && <p className={`avatar-feedback ${avatarError ? 'error' : ''}`} role={avatarError ? 'alert' : 'status'}>{avatarMessage}</p>}
+    </section>
     <section className="settings-card settings-password">
       <h2>Смена пароля</h2>
       <form onSubmit={changePassword}>

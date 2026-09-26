@@ -84,6 +84,7 @@ button:disabled { cursor: not-allowed; }
 .icon-button:not(:disabled):hover { color: var(--text); background: var(--panel-hover); }
 .icon-button:disabled { opacity: .58; }
 .avatar { display: inline-flex; justify-content: center; align-items: center; width: 30px; height: 30px; border-radius: 8px; color: #2d223d; background: linear-gradient(145deg, #dcd0ff, #9b87c8); font-size: 13px; font-weight: 700; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .mobile-menu, .mobile-sidebar-head { display: none; }
 
 .shell { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: calc(100vh - 74px); }
@@ -247,6 +248,31 @@ code { color: var(--gold); font-family: inherit; font-weight: 600; }
 .settings-password input:focus { outline: 2px solid var(--violet); outline-offset: 2px; }
 .settings-password form .button { justify-self: start; margin-top: 4px; }
 .settings-password .auth-error, .settings-password .auth-notice { margin: 15px 0 0; }
+.avatar-settings { flex-wrap: wrap; }
+.avatar-upload { position: relative; overflow: hidden; cursor: pointer; }
+.avatar-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.avatar-upload:has(input:focus-visible) { outline: 2px solid var(--violet); outline-offset: 2px; }
+.avatar-upload:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+.avatar-feedback { flex-basis: 100%; margin: -4px 0 0 !important; color: var(--green) !important; }
+.avatar-feedback.error { color: #f2b1af !important; }
+.site-admin-card { display: block; border-color: color-mix(in srgb, var(--violet) 45%, var(--border)); padding: 24px; }
+.site-admin-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 21px; }
+.site-admin-heading h2 { margin: 0 0 3px; }
+.site-admin-icon { width: 36px; height: 36px; display: grid; place-items: center; color: var(--violet); background: var(--violet-bg); border-radius: 9px; }
+.admin-toggle-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 19px; }
+.admin-toggle-list label { min-height: 43px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); font-size: 12px; }
+.admin-toggle-list input { width: 17px; height: 17px; accent-color: var(--violet); flex: 0 0 auto; }
+.admin-settings-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+.admin-settings-grid label { display: grid; gap: 7px; color: var(--muted); font-size: 11px; font-weight: 600; }
+.admin-settings-grid input { width: 100%; height: 41px; padding: 0 11px; border: 1px solid var(--border); border-radius: 9px; color: var(--text); background: var(--bg); font-size: 13px; }
+.admin-settings-grid input:focus { outline: 2px solid var(--violet); outline-offset: 1px; }
+.admin-grid-wide { grid-column: 1 / -1; }
+.admin-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-top: 18px; }
+.admin-mail-status { color: var(--muted); font-size: 11px; margin-left: auto; }
+.settings-toast { position: fixed; top: 20px; right: 20px; z-index: 100; display: flex; align-items: center; gap: 16px; max-width: min(410px, calc(100vw - 40px)); padding: 12px 14px; color: #d5f6e1; background: #234735; border: 1px solid #427c5b; border-radius: 10px; box-shadow: 0 18px 45px rgba(0,0,0,.24); font-size: 12px; }
+.settings-toast.error { color: #ffe1df; background: #71383b; border-color: #aa6163; }
+.settings-toast button { display: grid; place-items: center; padding: 2px; border: 0; background: none; color: inherit; }
+.maintenance-message p { color: var(--muted); font-size: 13px; line-height: 1.55; margin-bottom: 18px; }
 .nav-scrim { display: none; }
 
 .auth-page { min-height: 100vh; display: flex; flex-direction: column; }
@@ -365,6 +391,7 @@ code { color: var(--gold); font-family: inherit; font-weight: 600; }
   .back-link { margin-bottom: 27px; }
   .link-steps { margin-top: 24px; }
   .settings-card { flex-direction: column; align-items: flex-start; }
+  .admin-toggle-list { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 540px) {
@@ -394,6 +421,8 @@ code { color: var(--gold); font-family: inherit; font-weight: 600; }
   .game-profile-card, .game-guild-card { padding: 21px; }
   .profile-head { padding: 18px; }
   .footer-note { margin-top: 26px; }
+  .admin-settings-grid { grid-template-columns: 1fr; }
+  .admin-grid-wide { grid-column: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

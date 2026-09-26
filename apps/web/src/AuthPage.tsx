@@ -3,7 +3,7 @@ import { ArrowRight, Eye, EyeOff, Gamepad2, Moon, Sun } from 'lucide-react';
 import { authClient } from './auth-client';
 
 type Mode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
-type SiteConfig = { registrationEnabled: boolean; emailEnabled: boolean };
+type SiteConfig = { registrationEnabled: boolean; emailEnabled: boolean; maintenanceEnabled: boolean };
 
 function modeFromPath(): Mode {
   const path = window.location.pathname;
@@ -36,6 +36,7 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
   const [notice, setNotice] = useState('');
   const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null);
   const [configError, setConfigError] = useState(false);
+  const [adminLogin, setAdminLogin] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -45,7 +46,7 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
         if (typeof value.registrationEnabled !== 'boolean' || typeof value.emailEnabled !== 'boolean') throw new Error('Invalid site config');
         if (active) setSiteConfig(value);
       })
-      .catch(() => { if (active) { setConfigError(true); setSiteConfig({ registrationEnabled: false, emailEnabled: false }); } });
+      .catch(() => { if (active) { setConfigError(true); setSiteConfig({ registrationEnabled: false, emailEnabled: false, maintenanceEnabled: false }); } });
     return () => { active = false; };
   }, []);
 
@@ -129,9 +130,10 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
     }
   };
 
-  const title = { login: 'С возвращением', register: 'Создать аккаунт', verify: 'Проверь почту', forgot: 'Восстановить доступ', reset: 'Новый пароль' }[mode];
+  const maintenance = Boolean(siteConfig?.maintenanceEnabled);
+  const title = maintenance && !adminLogin ? 'Сайт обновляется' : { login: 'С возвращением', register: 'Создать аккаунт', verify: 'Проверь почту', forgot: 'Восстановить доступ', reset: 'Новый пароль' }[mode];
   const verified = mode === 'login' && new URLSearchParams(window.location.search).has('verified');
-  const unavailable = mode === 'register' && !siteConfig?.registrationEnabled
+  const unavailable = maintenance && mode !== 'login' ? 'Сайт временно закрыт на обновление.' : mode === 'register' && !siteConfig?.registrationEnabled
     ? 'Регистрация пока закрыта.'
     : (mode === 'verify' || mode === 'forgot') && !siteConfig?.emailEnabled
       ? 'Почта пока не настроена.'
@@ -151,13 +153,14 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
 
       <section className="auth-panel" aria-labelledby="auth-title">
         <h2 id="auth-title">{title}</h2>
+        {maintenance && !adminLogin && <div className="maintenance-message"><p>Мы готовим обновление. Попробуй зайти позже.</p><button type="button" className="button button-quiet" onClick={() => { navigate('login'); setAdminLogin(true); }}>Вход для администрации</button></div>}
         {verified && <p className="auth-notice" role="status">После подтверждения email войди в аккаунт.</p>}
         {notice && <p className="auth-notice" role="status">{notice}</p>}
         {error && <p className="auth-error" role="alert" tabIndex={-1} ref={errorRef}>{error}</p>}
         {configError && mode === 'login' && <p className="auth-error" role="alert">Сервис входа сейчас недоступен. Попробуй позже.</p>}
-        {unavailable && <p className="auth-unavailable" role="status">{configError ? 'Не удалось связаться с сервисом. Попробуй позже.' : siteConfig ? unavailable : 'Проверяем доступность сервиса…'}</p>}
+        {unavailable && (!maintenance || adminLogin) && <p className="auth-unavailable" role="status">{configError ? 'Не удалось связаться с сервисом. Попробуй позже.' : siteConfig ? unavailable : 'Проверяем доступность сервиса…'}</p>}
 
-        {!unavailable && <form onSubmit={submit} noValidate>
+        {!unavailable && (!maintenance || adminLogin) && <form onSubmit={submit} noValidate>
           {mode !== 'reset' && <label className="auth-field">Email<input type="email" name="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} autoComplete="email" placeholder="you@example.com" maxLength={254} required disabled={busy} /></label>}
           {mode === 'register' && <label className="auth-field">Ник на сайте<input type="text" name="nickname" value={nickname} onChange={(event) => { setNickname(event.target.value); setError(''); }} autoComplete="nickname" placeholder="Player123" maxLength={20} required disabled={busy} /></label>}
           {(mode === 'login' || mode === 'register' || mode === 'reset') && <label className="auth-field">{mode === 'reset' ? 'Новый пароль' : 'Пароль'}<span className="auth-password"><input type={showPassword ? 'text' : 'password'} name="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} maxLength={128} required disabled={busy} /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>}
@@ -166,9 +169,9 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
           <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'Подождите…' : mode === 'login' ? 'Войти' : mode === 'register' ? 'Зарегистрироваться' : mode === 'verify' ? 'Отправить письмо ещё раз' : mode === 'forgot' ? 'Отправить ссылку' : 'Сменить пароль'}{!busy && <ArrowRight size={18} />}</button>
         </form>}
 
-        <div className="auth-switch">
-          {mode === 'login' ? <>Нет аккаунта? <button type="button" onClick={() => navigate('register')}>Зарегистрируйтесь</button></> : mode === 'register' ? <>Уже есть аккаунт? <button type="button" onClick={() => navigate('login')}>Войти</button></> : <button type="button" onClick={() => navigate('login')}>Вернуться ко входу</button>}
-        </div>
+        {(!maintenance || adminLogin) && <div className="auth-switch">
+          {maintenance ? <button type="button" onClick={() => setAdminLogin(false)}>К объявлению</button> : mode === 'login' ? <>Нет аккаунта? <button type="button" onClick={() => navigate('register')}>Зарегистрируйтесь</button></> : mode === 'register' ? <>Уже есть аккаунт? <button type="button" onClick={() => navigate('login')}>Войти</button></> : <button type="button" onClick={() => navigate('login')}>Вернуться ко входу</button>}
+        </div>}
       </section>
     </main>
   </div>;
