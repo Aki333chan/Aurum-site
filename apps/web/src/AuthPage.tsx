@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Eye, EyeOff, Gamepad2, Link2, Moon, ShieldCheck, Sun } from 'lucide-react';
 import { authClient } from './auth-client';
 
@@ -19,7 +19,7 @@ function errorMessage(error: { code?: string; status?: number } | null | undefin
   if (error.status === 429) return 'Слишком много попыток. Подожди немного и попробуй снова.';
   if (error.code === 'EMAIL_NOT_VERIFIED') return 'Подтверди email по ссылке из письма, затем войди.';
   if (error.code === 'INVALID_EMAIL_OR_PASSWORD') return 'Неверный email или пароль.';
-  if (error.code?.includes('USERNAME')) return 'Ник занят или не подходит. Попробуй другой.';
+  if (error.code?.includes('USERNAME')) return 'Ник занят или недопустим.';
   return 'Сервис авторизации сейчас недоступен или запрос не удался. Попробуй позже.';
 }
 
@@ -32,6 +32,7 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
   const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const errorRef = useRef<HTMLParagraphElement>(null);
   const [notice, setNotice] = useState('');
   const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null);
   const [configError, setConfigError] = useState(false);
@@ -54,16 +55,14 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
+  useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
+
   const navigate = (next: Mode) => {
     const path = { login: '/login', register: '/register', verify: '/verify-email', forgot: '/forgot-password', reset: '/reset-password' }[next];
     window.history.pushState(null, '', path);
     setMode(next);
     setError('');
     setNotice('');
-    if (mode === 'register' && !/^[A-Za-z0-9_]{3,20}$/.test(nickname)) {
-      setError('Ник: от 3 до 20 латинских букв, цифр или символов _.');
-      return;
-    }
     setPassword('');
     setConfirmation('');
   };
@@ -72,12 +71,24 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
     event.preventDefault();
     setError('');
     setNotice('');
+    if (mode !== 'reset' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setError('Проверь email.');
+      return;
+    }
+    if (mode === 'register' && !/^[A-Za-z0-9_]{3,20}$/.test(nickname)) {
+      setError('Ник: 3–20 символов (A–Z, 0–9, _).');
+      return;
+    }
     if ((mode === 'register' || mode === 'reset') && password !== confirmation) {
       setError('Пароли не совпадают. Проверь оба поля.');
       return;
     }
     if ((mode === 'register' || mode === 'reset') && (password.length < 15 || password.length > 128)) {
-      setError('Пароль должен содержать от 15 до 128 символов.');
+      setError('Пароль: 15–128 символов.');
+      return;
+    }
+    if (mode === 'login' && !password) {
+      setError('Введи пароль.');
       return;
     }
 
@@ -120,17 +131,17 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
 
   const title = { login: 'С возвращением', register: 'Создать аккаунт', verify: 'Проверь почту', forgot: 'Восстановить доступ', reset: 'Новый пароль' }[mode];
   const description = {
-    login: 'Войди, чтобы открыть свой профиль и пространство Minecraft.',
-    register: 'Придумай ник сайта и пароль. Для завершения регистрации подтверди email по ссылке из письма.',
-    verify: 'Мы отправили ссылку для подтверждения email. После перехода по ней ты сможешь войти.',
-    forgot: 'Введи email аккаунта — мы отправим ссылку для смены пароля.',
-    reset: 'Придумай новый пароль для аккаунта Aurum.',
+    login: 'Войди в Aurum.',
+    register: 'Ник, email и пароль. Подтверждение придёт на почту.',
+    verify: 'Ссылка отправлена на email.',
+    forgot: 'Пришлём ссылку для смены пароля.',
+    reset: 'Придумай новый пароль.',
   }[mode];
   const verified = mode === 'login' && new URLSearchParams(window.location.search).has('verified');
   const unavailable = mode === 'register' && !siteConfig?.registrationEnabled
-    ? 'Регистрация откроется после настройки почты. Пока можно войти в уже созданный аккаунт.'
+    ? 'Регистрация пока закрыта.'
     : (mode === 'verify' || mode === 'forgot') && !siteConfig?.emailEnabled
-      ? 'Отправка писем пока не настроена. Этот раздел откроется вместе с регистрацией.'
+      ? 'Почта пока не настроена.'
       : '';
 
   return <div className="auth-page">
@@ -142,8 +153,8 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
       <section className="auth-intro" aria-label="О проекте Aurum">
         <h1>Твоё место<br />в Aurum.</h1>
         <span className="auth-game"><Gamepad2 size={17} /> Minecraft Community</span>
-        <p>Один аккаунт для сообщества и твоего Minecraft-профиля. Здесь появятся новости, гильдии и твоя игровая история.</p>
-        <div className="auth-next"><Link2 size={19} /><span>Игровой профиль привяжешь позже через одноразовый код <strong>/aurumlink</strong> — отдельно от регистрации на сайте.</span></div>
+        <p>Новости, гильдии и игровые профили в одном месте.</p>
+        <div className="auth-next"><Link2 size={19} /><span>Minecraft привяжешь позже через <strong>/aurumlink</strong>.</span></div>
       </section>
 
       <section className="auth-panel" aria-labelledby="auth-title">
@@ -151,15 +162,15 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
         <p className="auth-description">{description}</p>
         {verified && <p className="auth-notice" role="status">После подтверждения email войди в аккаунт.</p>}
         {notice && <p className="auth-notice" role="status">{notice}</p>}
-        {error && <p className="auth-error" role="alert">{error}</p>}
+        {error && <p className="auth-error" role="alert" tabIndex={-1} ref={errorRef}>{error}</p>}
         {configError && mode === 'login' && <p className="auth-error" role="alert">Сервис входа сейчас недоступен. Попробуй позже.</p>}
         {unavailable && <p className="auth-unavailable" role="status">{configError ? 'Не удалось связаться с сервисом. Попробуй позже.' : siteConfig ? unavailable : 'Проверяем доступность сервиса…'}</p>}
 
-        {!unavailable && <form onSubmit={submit}>
+        {!unavailable && <form onSubmit={submit} noValidate>
           {mode !== 'reset' && <label className="auth-field">Email<input type="email" name="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" maxLength={254} required disabled={busy} /></label>}
-          {mode === 'register' && <><label className="auth-field">Ник на сайте<input type="text" name="nickname" value={nickname} onChange={(event) => setNickname(event.target.value)} autoComplete="nickname" placeholder="Например, AurumPlayer" minLength={3} maxLength={20} required disabled={busy} /></label><p className="auth-hint">От 3 до 20 латинских букв, цифр или _. Игровой ник будет показан отдельно после привязки.</p></>}
-          {(mode === 'login' || mode === 'register' || mode === 'reset') && <label className="auth-field">{mode === 'reset' ? 'Новый пароль' : 'Пароль'}<span className="auth-password"><input type={showPassword ? 'text' : 'password'} name="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={mode === 'login' ? undefined : 15} maxLength={128} required disabled={busy} /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>}
-          {(mode === 'register' || mode === 'reset') && <><label className="auth-field">Подтверди пароль<input type={showPassword ? 'text' : 'password'} name="confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="new-password" required disabled={busy} /></label><p className="auth-hint"><ShieldCheck size={15} /> От 15 до 128 символов. Можно использовать длинную фразу и менеджер паролей.</p></>}
+          {mode === 'register' && <label className="auth-field">Ник на сайте<input type="text" name="nickname" value={nickname} onChange={(event) => { setNickname(event.target.value); setError(''); }} autoComplete="nickname" placeholder="Player123" maxLength={20} required disabled={busy} /></label>}
+          {(mode === 'login' || mode === 'register' || mode === 'reset') && <label className="auth-field">{mode === 'reset' ? 'Новый пароль' : 'Пароль'}<span className="auth-password"><input type={showPassword ? 'text' : 'password'} name="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} maxLength={128} required disabled={busy} /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>}
+          {(mode === 'register' || mode === 'reset') && <><label className="auth-field">Подтверди пароль<input type={showPassword ? 'text' : 'password'} name="confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="new-password" required disabled={busy} /></label><p className="auth-hint"><ShieldCheck size={15} /> Пароль: 15–128 символов.</p></>}
           {mode === 'login' && (siteConfig?.emailEnabled ? <button type="button" className="auth-inline-link auth-forgot" onClick={() => navigate('forgot')}>Забыл пароль?</button> : <span className="auth-forgot auth-muted">Восстановление по почте пока недоступно</span>)}
           <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'Подождите…' : mode === 'login' ? 'Войти' : mode === 'register' ? 'Зарегистрироваться' : mode === 'verify' ? 'Отправить письмо ещё раз' : mode === 'forgot' ? 'Отправить ссылку' : 'Сменить пароль'}{!busy && <ArrowRight size={18} />}</button>
         </form>}
@@ -169,6 +180,6 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
         </div>
       </section>
     </main>
-    <footer className="auth-footer">Aurum Site · Сначала Minecraft. Это ранняя версия сайта; остальные разделы добавляются поэтапно.</footer>
+    <footer className="auth-footer">Aurum Site · Minecraft Community</footer>
   </div>;
 }

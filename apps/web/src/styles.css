@@ -247,8 +247,6 @@ code { color: var(--gold); font-family: inherit; font-weight: 600; }
 .settings-password input:focus { outline: 2px solid var(--violet); outline-offset: 2px; }
 .settings-password form .button { justify-self: start; margin-top: 4px; }
 .settings-password .auth-error, .settings-password .auth-notice { margin: 15px 0 0; }
-.muted-setting { opacity: .66; }
-.muted-setting svg { flex: 0 0 auto; }
 .nav-scrim { display: none; }
 
 .auth-page { min-height: 100vh; display: flex; flex-direction: column; }

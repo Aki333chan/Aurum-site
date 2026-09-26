@@ -6,9 +6,7 @@ import {
   ArrowRight,
   BookOpen,
   Compass,
-  ExternalLink,
   Gamepad2,
-  HeartHandshake,
   Home,
   Link2,
   LogOut,
@@ -162,7 +160,7 @@ function MinecraftPage({ go }: { go: (page: Page) => void }) {
 }
 
 function ProfilePage({ go, name, email }: { go: (page: Page) => void; name: string; email?: string }) {
-  return <div className="profile-page"><h1>Моя страница</h1><p>Учётная запись Aurum и твой будущий Minecraft-профиль.</p><div className="profile-head"><span className="avatar profile-avatar">{name.charAt(0).toUpperCase()}</span><div><h2>{name}</h2><span>{email ? `Твой email: ${email} · виден только тебе` : 'Демонстрационный профиль'}</span></div></div><section className="settings-card"><div><h2>Игровые профили</h2><p>Minecraft пока не привязан. Подтверди профиль в игре, чтобы здесь появились твои данные.</p></div><button className="button button-primary" onClick={() => go('link')}>Привязать Minecraft <ArrowRight size={16} /></button></section></div>;
+  return <div className="profile-page"><h1>Моя страница</h1><div className="profile-head"><span className="avatar profile-avatar">{name.charAt(0).toUpperCase()}</span><div><h2>{name}</h2><span>{email ? `Email: ${email} · виден только тебе` : 'Демонстрационный профиль'}</span></div></div><section className="settings-card"><div><h2>Игровые профили</h2><p>Minecraft пока не привязан.</p></div><button className="button button-primary" onClick={() => go('link')}>Привязать Minecraft <ArrowRight size={16} /></button></section></div>;
 }
 
 function LinkPage({ onBack }: { onBack: () => void }) {
@@ -194,7 +192,7 @@ function SettingsPage() {
     setError('');
     setNotice('');
     if (newPassword !== confirmation) return setError('Новые пароли не совпадают.');
-    if (newPassword.length < 15 || newPassword.length > 128) return setError('Новый пароль должен содержать от 15 до 128 символов.');
+    if (newPassword.length < 15 || newPassword.length > 128) return setError('Пароль: 15–128 символов.');
     if (newPassword === currentPassword) return setError('Новый пароль должен отличаться от текущего.');
     setBusy(true);
     try {
@@ -213,7 +211,20 @@ function SettingsPage() {
     }
   };
 
-  return <div className="settings-page"><h1>Настройки</h1><p>Тему можно переключить внизу левого меню. Здесь же можно сменить пароль аккаунта.</p><section className="settings-card settings-password"><h2>Смена пароля</h2><p>После первого входа замени временный пароль. Новый пароль — от 15 до 128 символов.</p><form onSubmit={changePassword}><label>Текущий пароль<input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required disabled={busy} /></label><label>Новый пароль<input type="password" autoComplete="new-password" minLength={15} maxLength={128} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required disabled={busy} /></label><label>Повтори новый пароль<input type="password" autoComplete="new-password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required disabled={busy} /></label><button className="button button-primary" type="submit" disabled={busy}>{busy ? 'Сохраняем…' : 'Сменить пароль'}</button></form>{error && <p className="auth-error" role="alert">{error}</p>}{notice && <p className="auth-notice" role="status">{notice}</p>}</section><div className="settings-card muted-setting"><div><h2>Двухфакторная защита</h2><p>Позже здесь можно будет по желанию включить подтверждение входа. Оно не будет обязательным для игроков.</p></div><ShieldCheck size={19} /></div><div className="settings-card muted-setting"><div><h2>Профиль и приватность</h2><p>Здесь можно будет управлять видимостью игровых данных и комментариями.</p></div><ExternalLink size={18} /></div><div className="settings-card muted-setting"><div><h2>Связанные игры</h2><p>Пока готовим привязку Minecraft через одноразовый код.</p></div><HeartHandshake size={19} /></div></div>;
+  return <div className="settings-page">
+    <h1>Настройки</h1>
+    <section className="settings-card settings-password">
+      <h2>Смена пароля</h2>
+      <form onSubmit={changePassword}>
+        <label>Текущий пароль<input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => { setCurrentPassword(event.target.value); setError(''); }} required disabled={busy} /></label>
+        <label>Новый пароль<input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => { setNewPassword(event.target.value); setError(''); }} required disabled={busy} /></label>
+        <label>Повтори новый пароль<input type="password" autoComplete="new-password" value={confirmation} onChange={(event) => { setConfirmation(event.target.value); setError(''); }} required disabled={busy} /></label>
+        <button className="button button-primary" type="submit" disabled={busy}>{busy ? 'Сохраняем…' : 'Сменить пароль'}</button>
+      </form>
+      {error && <p className="auth-error" role="alert">{error}</p>}
+      {notice && <p className="auth-notice" role="status">{notice}</p>}
+    </section>
+  </div>;
 }
 
 export default App;
