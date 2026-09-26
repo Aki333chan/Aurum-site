@@ -76,7 +76,7 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
       return;
     }
     if (mode === 'register' && !/^[A-Za-z0-9_]{3,20}$/.test(nickname)) {
-      setError('Ник: 3–20 символов (A–Z, 0–9, _).');
+      setError('Ник: 3–20 латинских букв, цифр или _.');
       return;
     }
     if ((mode === 'register' || mode === 'reset') && password !== confirmation) {
@@ -159,10 +159,10 @@ export function AuthPage({ lightTheme, toggleTheme }: { lightTheme: boolean; tog
         {unavailable && <p className="auth-unavailable" role="status">{configError ? 'Не удалось связаться с сервисом. Попробуй позже.' : siteConfig ? unavailable : 'Проверяем доступность сервиса…'}</p>}
 
         {!unavailable && <form onSubmit={submit} noValidate>
-          {mode !== 'reset' && <label className="auth-field">Email<input type="email" name="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" placeholder="you@example.com" maxLength={254} required disabled={busy} /></label>}
+          {mode !== 'reset' && <label className="auth-field">Email<input type="email" name="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} autoComplete="email" placeholder="you@example.com" maxLength={254} required disabled={busy} /></label>}
           {mode === 'register' && <label className="auth-field">Ник на сайте<input type="text" name="nickname" value={nickname} onChange={(event) => { setNickname(event.target.value); setError(''); }} autoComplete="nickname" placeholder="Player123" maxLength={20} required disabled={busy} /></label>}
-          {(mode === 'login' || mode === 'register' || mode === 'reset') && <label className="auth-field">{mode === 'reset' ? 'Новый пароль' : 'Пароль'}<span className="auth-password"><input type={showPassword ? 'text' : 'password'} name="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} maxLength={128} required disabled={busy} /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>}
-          {(mode === 'register' || mode === 'reset') && <label className="auth-field">Подтверди пароль<input type={showPassword ? 'text' : 'password'} name="confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="new-password" required disabled={busy} /></label>}
+          {(mode === 'login' || mode === 'register' || mode === 'reset') && <label className="auth-field">{mode === 'reset' ? 'Новый пароль' : 'Пароль'}<span className="auth-password"><input type={showPassword ? 'text' : 'password'} name="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} maxLength={128} required disabled={busy} /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>}
+          {(mode === 'register' || mode === 'reset') && <label className="auth-field">Подтверди пароль<input type={showPassword ? 'text' : 'password'} name="confirmation" value={confirmation} onChange={(event) => { setConfirmation(event.target.value); setError(''); }} autoComplete="new-password" required disabled={busy} /></label>}
           {mode === 'login' && siteConfig?.emailEnabled && <button type="button" className="auth-inline-link auth-forgot" onClick={() => navigate('forgot')}>Забыл пароль?</button>}
           <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'Подождите…' : mode === 'login' ? 'Войти' : mode === 'register' ? 'Зарегистрироваться' : mode === 'verify' ? 'Отправить письмо ещё раз' : mode === 'forgot' ? 'Отправить ссылку' : 'Сменить пароль'}{!busy && <ArrowRight size={18} />}</button>
         </form>}
