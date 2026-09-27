@@ -13,11 +13,13 @@ type Profile = {
 };
 
 type Tab = 'overview' | 'posts' | 'comments';
+type MediaKind = 'avatar' | 'banner';
 
-export function ProfilePage({ username, preview, imageCooldownHours, onBack, onLink }: {
+export function ProfilePage({ username, preview, imageCooldownHours, onAvatarUpdate, onBack, onLink }: {
   username: string;
   preview: boolean;
   imageCooldownHours: number;
+  onAvatarUpdate: (updatedAt: string) => void;
   onBack: () => void;
   onLink: () => void;
 }) {
@@ -29,8 +31,8 @@ export function ProfilePage({ username, preview, imageCooldownHours, onBack, onL
   const [tagline, setTagline] = useState('');
   const [about, setAbout] = useState('');
   const [saving, setSaving] = useState(false);
-  const [bannerBusy, setBannerBusy] = useState(false);
-  const [cropFile, setCropFile] = useState<File | null>(null);
+  const [mediaBusy, setMediaBusy] = useState<MediaKind | null>(null);
+  const [cropSelection, setCropSelection] = useState<{ file: File; kind: MediaKind } | null>(null);
   const [now, setNow] = useState(Date.now());
   const [message, setMessage] = useState('');
   const [messageError, setMessageError] = useState(false);
@@ -69,12 +71,13 @@ export function ProfilePage({ username, preview, imageCooldownHours, onBack, onL
     return () => { active = false; };
   }, [username, preview]);
 
+  const nextAvatarAt = profile?.avatarUpdatedAt ? Date.parse(profile.avatarUpdatedAt) + imageCooldownHours * 3600_000 : 0;
   const nextBannerAt = profile?.bannerUpdatedAt ? Date.parse(profile.bannerUpdatedAt) + imageCooldownHours * 3600_000 : 0;
   useEffect(() => {
-    if (nextBannerAt <= now) return;
+    if (nextAvatarAt <= now && nextBannerAt <= now) return;
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(timer);
-  }, [nextBannerAt, now]);
+  }, [nextAvatarAt, nextBannerAt, now]);
 
   useEffect(() => {
     if (!message) return;
@@ -94,7 +97,7 @@ export function ProfilePage({ username, preview, imageCooldownHours, onBack, onL
       });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error || 'Не удалось сохранить профиль.');
-      setProfile({ ...profile, tagline: result.tagline, about: result.about });
+      setProfile((current) => current && { ...current, tagline: result.tagline, about: result.about });
       setTagline(result.tagline);
       setAbout(result.about);
       setEditing(false);
@@ -114,34 +117,43 @@ export function ProfilePage({ username, preview, imageCooldownHours, onBack, onL
     } catch { setMessageError(true); setMessage('Не удалось скопировать ссылку.'); }
   };
 
-  const uploadBanner = async (file?: File) => {
-    if (!file || !profile?.own || preview) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 4_000_000) {
-      setMessageError(true); setMessage('Не удалось подготовить обложку для загрузки.'); return;
+  const uploadMedia = async (kind: MediaKind, file: File) => {
+    if (!profile?.own || preview) return;
+    const label = kind === 'avatar' ? 'аватар' : 'обложку';
+    const updatedAtField = kind === 'avatar' ? 'avatarUpdatedAt' : 'bannerUpdatedAt';
+    if (file.type !== 'image/png' || file.size > (kind === 'avatar' ? 2_000_000 : 4_000_000)) {
+      setMessageError(true); setMessage('Не удалось подготовить изображение для загрузки.'); return;
     }
-    if (Date.now() < nextBannerAt) { setMessageError(true); setMessage('Смена обложки пока недоступна.'); return; }
-    setBannerBusy(true);
+    if (Date.now() < (kind === 'avatar' ? nextAvatarAt : nextBannerAt)) {
+      setMessageError(true); setMessage('Смена изображения пока недоступна.'); return;
+    }
+    setMediaBusy(kind);
     setMessage('');
     try {
-      const response = await fetch('/api/site/me/banner', { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
-      const result = await response.json();
-      if (!response.ok) throw new Error(response.status === 429 ? 'Смена обложки пока недоступна.' : 'Не удалось загрузить обложку.');
-      setProfile((current) => current && { ...current, bannerUpdatedAt: result.bannerUpdatedAt });
+      const response = await fetch(`/api/site/me/${kind}`, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(response.status === 429 ? 'Смена изображения пока недоступна.'
+        : `Не удалось загрузить ${label} (код ${response.status}).`);
+      const updatedAt = result[updatedAtField];
+      if (typeof updatedAt !== 'string') throw new Error(`Не удалось подтвердить загрузку: ${label}.`);
+      setProfile((current) => current && { ...current, [updatedAtField]: updatedAt });
+      if (kind === 'avatar') onAvatarUpdate(updatedAt);
       setNow(Date.now());
       setMessageError(false);
-      setMessage('Обложка обновлена.');
+      setMessage(kind === 'avatar' ? 'Аватар обновлён.' : 'Обложка обновлена.');
     } catch (reason) {
       setMessageError(true);
-      setMessage(reason instanceof Error ? reason.message : 'Не удалось загрузить обложку.');
-    } finally { setBannerBusy(false); }
+      setMessage(reason instanceof Error ? reason.message : `Не удалось загрузить ${label}.`);
+    } finally { setMediaBusy(null); }
   };
 
-  const selectBanner = (file?: File) => {
+  const selectMedia = (kind: MediaKind, file?: File) => {
     if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 20_000_000) {
-      setMessageError(true); setMessage('Выбери JPG, PNG или WebP до 20 МБ.'); return;
+    if (file.size > 20_000_000 || file.type === 'image/svg+xml' || (file.type && !file.type.startsWith('image/'))) {
+      setMessageError(true); setMessage('Выбери изображение до 20 МБ. SVG не поддерживается.'); return;
     }
-    setCropFile(file);
+    setMessage('');
+    setCropSelection({ file, kind });
   };
 
   if (loading) return <div className="profile-page"><p className="profile-state" role="status">Загружаем профиль…</p></div>;
@@ -173,8 +185,11 @@ export function ProfilePage({ username, preview, imageCooldownHours, onBack, onL
     {message && <div className={`settings-toast ${messageError ? 'error' : ''}`} role={messageError ? 'alert' : 'status'}><span className="settings-toast-text">{message}</span><button aria-label="Закрыть уведомление" onClick={() => setMessage('')}><X size={17} /></button></div>}
     {editing && <form className="profile-editor" onSubmit={save}>
       <h2>О себе</h2>
-      <div className="profile-banner-edit"><div><strong>Обложка</strong><span>{nextBannerAt > now ? `Смена после ${new Date(nextBannerAt).toLocaleString('ru-RU')}` : 'JPG, PNG, WebP · до 20 МБ / 24 Мп · публикация сразу'}</span></div>
-        <label className="button button-quiet profile-banner-upload">{bannerBusy ? 'Загружаем…' : 'Выбрать изображение'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={bannerBusy || nextBannerAt > now || preview} onChange={(event) => { selectBanner(event.target.files?.[0]); event.target.value = ''; }} /></label>
+      <div className="profile-media-edit"><div><strong>Аватар</strong><span>{nextAvatarAt > now ? `Смена после ${new Date(nextAvatarAt).toLocaleString('ru-RU')}` : 'До 20 МБ / 16 Мп · публикация сразу'}</span></div>
+        <label className="button button-quiet profile-media-upload">{mediaBusy === 'avatar' ? 'Загружаем…' : 'Выбрать фото'}<input type="file" accept="image/*,.heic,.heif" disabled={Boolean(mediaBusy) || nextAvatarAt > now || preview} onChange={(event) => { selectMedia('avatar', event.target.files?.[0]); event.target.value = ''; }} /></label>
+      </div>
+      <div className="profile-media-edit"><div><strong>Обложка</strong><span>{nextBannerAt > now ? `Смена после ${new Date(nextBannerAt).toLocaleString('ru-RU')}` : 'До 20 МБ / 24 Мп · публикация сразу'}</span></div>
+        <label className="button button-quiet profile-media-upload">{mediaBusy === 'banner' ? 'Загружаем…' : 'Выбрать изображение'}<input type="file" accept="image/*,.heic,.heif" disabled={Boolean(mediaBusy) || nextBannerAt > now || preview} onChange={(event) => { selectMedia('banner', event.target.files?.[0]); event.target.value = ''; }} /></label>
       </div>
       <label>Короткая строка<input maxLength={120} value={tagline} onChange={(event) => setTagline(event.target.value)} placeholder="Например: строю город" disabled={saving} /></label>
       <label>Описание<textarea maxLength={600} rows={4} value={about} onChange={(event) => setAbout(event.target.value)} placeholder="Расскажи о себе" disabled={saving} /></label>
@@ -198,6 +213,6 @@ export function ProfilePage({ username, preview, imageCooldownHours, onBack, onL
         <section className="profile-section"><h2>О {profile.own ? 'себе' : 'игроке'}</h2><div className="profile-about">{profile.about || (profile.own ? 'Пока пусто. Нажми «Изменить профиль», чтобы рассказать о себе.' : 'Описание ещё не добавлено.')}</div></section>
       </aside>
     </div> : <section className="profile-section profile-tab-panel"><h2>{tab === 'posts' ? 'Записи' : 'Комментарии'}</h2><div className="profile-empty">{tab === 'posts' ? 'Записи пока недоступны.' : 'Комментарии пока недоступны.'}</div></section>}
-    {cropFile && <ImageCropper file={cropFile} kind="banner" onCancel={() => setCropFile(null)} onApply={(cropped) => { setCropFile(null); void uploadBanner(cropped); }} />}
+    {cropSelection && <ImageCropper file={cropSelection.file} kind={cropSelection.kind} onCancel={() => setCropSelection(null)} onApply={(cropped) => { const kind = cropSelection.kind; setCropSelection(null); void uploadMedia(kind, cropped); }} />}
   </div>;
 }

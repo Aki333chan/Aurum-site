@@ -4,7 +4,7 @@ type Kind = 'avatar' | 'banner';
 type Point = { x: number; y: number };
 
 const sizes = {
-  avatar: { previewWidth: 320, previewHeight: 320, outputWidth: 256, outputHeight: 256, maxPixels: 16_000_000 },
+  avatar: { previewWidth: 640, previewHeight: 640, outputWidth: 256, outputHeight: 256, maxPixels: 16_000_000 },
   banner: { previewWidth: 400, previewHeight: 100, outputWidth: 1600, outputHeight: 400, maxPixels: 24_000_000 },
 };
 
@@ -48,7 +48,7 @@ export function ImageCropper({ file, kind, onCancel, onApply }: {
       setError('');
       setReady(true);
     };
-    image.onerror = () => { if (active) setError('Не удалось открыть изображение.'); };
+    image.onerror = () => { if (active) setError('Браузер не открыл этот формат. Попробуй JPG или PNG.'); };
     image.src = url;
     return () => { active = false; imageRef.current = null; URL.revokeObjectURL(url); };
   }, [file, frame.maxPixels]);
@@ -98,23 +98,23 @@ export function ImageCropper({ file, kind, onCancel, onApply }: {
     canvas.toBlob((blob) => {
       if (cancelledRef.current) return;
       if (!blob) { exportingRef.current = false; setError('Не удалось подготовить изображение.'); return; }
-      onApply(new File([blob], `${kind}.webp`, { type: 'image/webp' }));
-    }, 'image/webp', .85);
+      onApply(new File([blob], `${kind}.png`, { type: blob.type || 'image/png' }));
+    }, 'image/png');
   };
 
   return <dialog className="crop-dialog" ref={dialogRef} onCancel={(event) => { event.preventDefault(); cancel(); }}>
     <div className="crop-head"><h2>{kind === 'avatar' ? 'Обрезать аватар' : 'Обрезать обложку'}</h2><button type="button" onClick={cancel} aria-label="Закрыть редактор">×</button></div>
     <p>Перетащи изображение и выбери масштаб.</p>
-    <canvas ref={canvasRef} className={`crop-canvas ${kind}`} width={frame.previewWidth} height={frame.previewHeight}
-      role="img" aria-label="Предпросмотр обрезки. Стрелками можно сместить изображение." tabIndex={0}
+    <div className={`crop-stage crop-${kind}`}><canvas ref={canvasRef} className={`crop-canvas crop-${kind}`} width={frame.previewWidth} height={frame.previewHeight}
+      role="group" aria-label="Предпросмотр обрезки. Стрелками можно сместить изображение." tabIndex={0}
       onPointerDown={(event) => { if (!ready) return; event.currentTarget.setPointerCapture(event.pointerId); dragRef.current = { pointerX: event.clientX, pointerY: event.clientY, offset }; }}
       onPointerMove={(event) => { if (!dragRef.current) return; const rect = event.currentTarget.getBoundingClientRect();
         move({ x: dragRef.current.offset.x + (event.clientX - dragRef.current.pointerX) * frame.previewWidth / rect.width,
           y: dragRef.current.offset.y + (event.clientY - dragRef.current.pointerY) * frame.previewHeight / rect.height }); }}
       onPointerUp={() => { dragRef.current = null; }} onPointerCancel={() => { dragRef.current = null; }}
       onKeyDown={(event) => { const delta: Record<string, Point> = { ArrowLeft: { x: -10, y: 0 }, ArrowRight: { x: 10, y: 0 }, ArrowUp: { x: 0, y: -10 }, ArrowDown: { x: 0, y: 10 } };
-        if (!delta[event.key]) return; event.preventDefault(); move({ x: offset.x + delta[event.key].x, y: offset.y + delta[event.key].y }); }} />
-    <label className="crop-zoom">Масштаб<input type="range" min="1" max="3" step="0.01" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} disabled={!ready} /></label>
+        if (!delta[event.key]) return; event.preventDefault(); move({ x: offset.x + delta[event.key].x, y: offset.y + delta[event.key].y }); }} /></div>
+    <label className="crop-zoom">Масштаб<input type="range" min="1" max="12" step="0.01" value={zoom} onChange={(event) => setZoom(Number(event.target.value))} disabled={!ready} /></label>
     {error && <p className="crop-error" role="alert">{error}</p>}
     <div className="crop-actions"><button className="button button-quiet" type="button" onClick={cancel}>Отмена</button><button className="button button-primary" type="button" onClick={apply} disabled={!ready}>{kind === 'banner' ? 'Опубликовать обложку' : 'Сохранить аватар'}</button></div>
   </dialog>;

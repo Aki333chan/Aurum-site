@@ -3,7 +3,6 @@ import { AuthPage } from './AuthPage';
 import { authClient } from './auth-client';
 import { SiteAdminSettings } from './SiteAdminSettings';
 import { ProfilePage } from './ProfilePage';
-import { ImageCropper } from './ImageCropper';
 import {
   ArrowLeft,
   ArrowRight,
@@ -143,7 +142,7 @@ function App() {
         </aside>
 
         <main className="content">
-          {page === 'link' ? <LinkPage onBack={() => go('minecraft')} /> : page === 'profile' || page === 'publicProfile' ? <ProfilePage key={page === 'profile' ? 'own' : `public:${viewedUsername.toLowerCase()}`} username={page === 'profile' ? session?.user.username || displayName : viewedUsername} preview={preview} imageCooldownHours={siteMe?.avatarCooldownHours || 24} onBack={() => go('home')} onLink={() => go('link')} /> : page === 'settings' ? <SettingsPage siteMe={siteMe} onAvatarUpdate={(avatarUpdatedAt) => setSiteMe((current) => current && { ...current, avatarUpdatedAt })} /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} /> : <HomePage page={page} go={go} />}
+          {page === 'link' ? <LinkPage onBack={() => go('minecraft')} /> : page === 'profile' || page === 'publicProfile' ? <ProfilePage key={page === 'profile' ? 'own' : `public:${viewedUsername.toLowerCase()}`} username={page === 'profile' ? session?.user.username || displayName : viewedUsername} preview={preview} imageCooldownHours={siteMe?.avatarCooldownHours || 24} onAvatarUpdate={(avatarUpdatedAt) => setSiteMe((current) => current && { ...current, avatarUpdatedAt })} onBack={() => go('home')} onLink={() => go('link')} /> : page === 'settings' ? <SettingsPage siteMe={siteMe} /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} /> : <HomePage page={page} go={go} />}
         </main>
       </div>
       {mobileNav && <button className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />}
@@ -239,48 +238,13 @@ function ConceptPage({ go }: { go: (page: Page) => void }) {
   return <div className="concept-page"><button className="back-link" onClick={() => go('servers')}><ArrowLeft size={18} /> К игровым мирам</button><h1>Гильдии Minecraft</h1><MinecraftTabs current="guilds" go={go} /><div className="concept-card"><span><UsersRound size={25} /></span><div><strong>Раздел пока в разработке</strong></div></div></div>;
 }
 
-function SettingsPage({ siteMe, onAvatarUpdate }: { siteMe: { admin: boolean; avatarUpdatedAt: string | null; avatarCooldownHours: number } | null; onAvatarUpdate: (value: string) => void }) {
+function SettingsPage({ siteMe }: { siteMe: { admin: boolean } | null }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const [avatarBusy, setAvatarBusy] = useState(false);
-  const [cropFile, setCropFile] = useState<File | null>(null);
-  const [avatarMessage, setAvatarMessage] = useState('');
-  const [avatarError, setAvatarError] = useState(false);
-  const [now, setNow] = useState(Date.now());
-  const nextAvatarAt = siteMe?.avatarUpdatedAt ? Date.parse(siteMe.avatarUpdatedAt) + siteMe.avatarCooldownHours * 3600_000 : 0;
-  useEffect(() => {
-    if (nextAvatarAt <= now) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
-    return () => window.clearInterval(timer);
-  }, [nextAvatarAt, now]);
-
-  const uploadAvatar = async (file?: File) => {
-    if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 2_000_000) { setAvatarError(true); return setAvatarMessage('Выбери JPG, PNG или WebP до 2 МБ.'); }
-    if (Date.now() < nextAvatarAt) { setAvatarError(true); return setAvatarMessage('Сменить аватар можно после окончания ожидания.'); }
-    setAvatarBusy(true);
-    setAvatarMessage('');
-    try {
-      const response = await fetch('/api/site/me/avatar', { method: 'PUT', headers: { 'Content-Type': file.type }, body: file });
-      const result = await response.json();
-      if (!response.ok) { setAvatarError(true); setAvatarMessage(response.status === 429 ? 'Смена аватара пока недоступна.' : 'Не удалось загрузить изображение.'); }
-      else { onAvatarUpdate(result.avatarUpdatedAt); setNow(Date.now()); setAvatarError(false); setAvatarMessage('Аватар обновлён.'); }
-    } catch { setAvatarError(true); setAvatarMessage('Не удалось загрузить изображение.'); }
-    finally { setAvatarBusy(false); }
-  };
-
-  const selectAvatar = (file?: File) => {
-    if (!file) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 20_000_000) {
-      setAvatarError(true); setAvatarMessage('Выбери JPG, PNG или WebP до 20 МБ.'); return;
-    }
-    setCropFile(file);
-  };
-
   const changePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
@@ -308,11 +272,6 @@ function SettingsPage({ siteMe, onAvatarUpdate }: { siteMe: { admin: boolean; av
   return <div className="settings-page">
     <h1>Настройки</h1>
     {siteMe?.admin && <SiteAdminSettings />}
-    <section className="settings-card avatar-settings">
-      <div><h2>Аватар</h2><p>{nextAvatarAt > now ? `Следующая смена: ${new Date(nextAvatarAt).toLocaleString('ru-RU')}` : 'JPG, PNG или WebP · до 20 МБ / 16 Мп'}</p></div>
-      <label className="button button-quiet avatar-upload">{avatarBusy ? 'Загружаем…' : 'Выбрать фото'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={avatarBusy || nextAvatarAt > now} onChange={(event) => { selectAvatar(event.target.files?.[0]); event.target.value = ''; }} /></label>
-      {avatarMessage && <p className={`avatar-feedback ${avatarError ? 'error' : ''}`} role={avatarError ? 'alert' : 'status'}>{avatarMessage}</p>}
-    </section>
     <section className="settings-card settings-password">
       <h2>Смена пароля</h2>
       <form onSubmit={changePassword}>
@@ -324,7 +283,6 @@ function SettingsPage({ siteMe, onAvatarUpdate }: { siteMe: { admin: boolean; av
       {error && <p className="auth-error" role="alert">{error}</p>}
       {notice && <p className="auth-notice" role="status">{notice}</p>}
     </section>
-    {cropFile && <ImageCropper file={cropFile} kind="avatar" onCancel={() => setCropFile(null)} onApply={(cropped) => { setCropFile(null); void uploadAvatar(cropped); }} />}
   </div>;
 }
 
