@@ -4,7 +4,7 @@ import sharp from 'sharp';
 import nodemailer from 'nodemailer';
 import { auth } from './auth.js';
 import { readConfig } from './config.js';
-import { encryptSecret, getSiteSettings, initSiteData, invalidateSiteSettings, isSiteAdmin, pool } from './site-data.js';
+import { encryptSecret, getSiteSettings, initSiteData, invalidateSiteSettings, isSiteAdmin, normalizeProfileInput, pool } from './site-data.js';
 
 const config = readConfig();
 const handleAuth = toNodeHandler(auth);
@@ -109,6 +109,40 @@ const server = createServer(async (req, res) => {
       return json(res, 200, { admin, avatarUpdatedAt: avatar.rows[0]?.updated_at || null,
         avatarCooldownHours: settings.avatarCooldownHours });
     }
+    if (path === '/api/site/me/profile' && req.method === 'PUT') {
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'JSON required' });
+      let profile;
+      try { profile = normalizeProfileInput(JSON.parse((await readBody(req, 2048)).toString('utf8'))); }
+      catch (error) { return json(res, error.message === 'Body too large' ? 413 : 400,
+        { error: error instanceof SyntaxError ? 'Некорректные данные профиля' : error.message }); }
+      await pool.query(`INSERT INTO site_profile (user_id, tagline, about) VALUES ($1, $2, $3)
+        ON CONFLICT (user_id) DO UPDATE SET tagline=EXCLUDED.tagline, about=EXCLUDED.about, updated_at=now()`,
+      [session.user.id, profile.tagline, profile.about]);
+      return json(res, 200, profile);
+    }
+    const profilePath = path.match(/^\/api\/site\/profile\/([A-Za-z0-9_]{3,20})(\/(avatar|banner))?$/);
+    if (profilePath && req.method === 'GET') {
+      const username = profilePath[1];
+      if (profilePath[2]) {
+        const table = profilePath[3] === 'banner' ? 'site_banner' : 'site_avatar';
+        const image = await pool.query(`SELECT a.image FROM ${table} a JOIN "user" u ON u.id=a.user_id
+          WHERE lower(u.username)=lower($1)`, [username]);
+        if (!image.rows[0]) return json(res, 404, { error: 'No image' });
+        res.setHeader('Content-Type', 'image/webp');
+        res.setHeader('Cache-Control', 'private, no-store');
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        return res.writeHead(200).end(image.rows[0].image);
+      }
+      const profile = await pool.query(`SELECT u.id, u.username, u."displayUsername" AS "displayName",
+        COALESCE(p.tagline, '') AS tagline, COALESCE(p.about, '') AS about,
+        a.updated_at AS "avatarUpdatedAt", b.updated_at AS "bannerUpdatedAt"
+        FROM "user" u LEFT JOIN site_profile p ON p.user_id=u.id
+        LEFT JOIN site_avatar a ON a.user_id=u.id LEFT JOIN site_banner b ON b.user_id=u.id
+        WHERE lower(u.username)=lower($1)`, [username]);
+      if (!profile.rows[0]) return json(res, 404, { error: 'Profile not found' });
+      const { id, ...publicProfile } = profile.rows[0];
+      return json(res, 200, { ...publicProfile, own: id === session.user.id });
+    }
     if (path === '/api/site/me/avatar' && req.method === 'GET') {
       const avatar = await pool.query('SELECT image FROM site_avatar WHERE user_id=$1', [session.user.id]);
       if (!avatar.rows[0]) return json(res, 404, { error: 'No avatar' });
@@ -138,6 +172,28 @@ const server = createServer(async (req, res) => {
       [session.user.id, image, settings.avatarCooldownHours]);
       if (!saved.rowCount) return json(res, 429, { error: 'Avatar change is on cooldown' });
       return json(res, 200, { avatarUpdatedAt: saved.rows[0].updated_at });
+    }
+    if (path === '/api/site/me/banner' && req.method === 'PUT') {
+      const type = String(req.headers['content-type'] || '').split(';')[0];
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) return json(res, 415, { error: 'Choose JPG, PNG or WebP' });
+      if (Number(req.headers['content-length'] || 0) > 4_000_000) return json(res, 413, { error: 'Image exceeds 4 MB' });
+      const previous = await pool.query('SELECT updated_at FROM site_banner WHERE user_id=$1', [session.user.id]);
+      if (previous.rows[0] && Date.now() < new Date(previous.rows[0].updated_at).getTime() + settings.avatarCooldownHours * 3600_000) {
+        return json(res, 429, { error: 'Banner change is on cooldown' });
+      }
+      const input = await readBody(req, 4_000_000);
+      if (imageFormat(input) !== type) return json(res, 415, { error: 'Invalid image' });
+      let image;
+      try {
+        image = await sharp(input, { limitInputPixels: 24_000_000, failOn: 'warning' })
+          .rotate().resize(1600, 400, { fit: 'cover' }).webp({ quality: 80 }).toBuffer();
+      } catch { return json(res, 415, { error: 'Invalid image' }); }
+      const saved = await pool.query(`INSERT INTO site_banner (user_id, image) VALUES ($1, $2)
+        ON CONFLICT (user_id) DO UPDATE SET image=EXCLUDED.image, updated_at=now()
+        WHERE site_banner.updated_at <= now() - ($3::integer * interval '1 hour') RETURNING updated_at`,
+      [session.user.id, image, settings.avatarCooldownHours]);
+      if (!saved.rowCount) return json(res, 429, { error: 'Banner change is on cooldown' });
+      return json(res, 200, { bannerUpdatedAt: saved.rows[0].updated_at });
     }
 
     if (path.startsWith('/api/site/admin/')) {

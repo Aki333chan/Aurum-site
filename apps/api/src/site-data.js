@@ -50,6 +50,17 @@ export async function initSiteData() {
     image bytea NOT NULL,
     updated_at timestamptz NOT NULL DEFAULT now()
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS site_banner (
+    user_id text PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+    image bytea NOT NULL,
+    updated_at timestamptz NOT NULL DEFAULT now()
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS site_profile (
+    user_id text PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+    tagline text NOT NULL DEFAULT '',
+    about text NOT NULL DEFAULT '',
+    updated_at timestamptz NOT NULL DEFAULT now()
+  )`);
   await pool.query(`INSERT INTO site_settings
     (id, registration_enabled, email_enabled, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from)
     VALUES (1, $1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
@@ -85,4 +96,18 @@ export async function isSiteAdmin(userId) {
   if (!userId) return false;
   const result = await pool.query('SELECT 1 FROM site_admin WHERE user_id = $1', [userId]);
   return result.rowCount === 1;
+}
+
+export function normalizeProfileInput(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)
+    || typeof value.tagline !== 'string' || typeof value.about !== 'string') {
+    throw new Error('Некорректные данные профиля');
+  }
+  const tagline = value.tagline.trim().replace(/\s+/g, ' ');
+  const about = value.about.trim();
+  if (tagline.length > 120 || about.length > 600 || /[\p{Cc}\p{Cf}]/u.test(tagline)
+    || /[\p{Cf}\x00-\x09\x0B-\x1F\x7F]/u.test(about)) {
+    throw new Error('Описание слишком длинное или содержит недопустимые символы');
+  }
+  return { tagline, about };
 }

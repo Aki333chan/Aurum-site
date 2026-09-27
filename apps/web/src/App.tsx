@@ -2,6 +2,8 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { AuthPage } from './AuthPage';
 import { authClient } from './auth-client';
 import { SiteAdminSettings } from './SiteAdminSettings';
+import { ProfilePage } from './ProfilePage';
+import { ImageCropper } from './ImageCropper';
 import {
   ArrowLeft,
   ArrowRight,
@@ -22,7 +24,21 @@ import {
   X,
 } from 'lucide-react';
 
-type Page = 'home' | 'servers' | 'minecraft' | 'guilds' | 'link' | 'profile' | 'settings';
+type Page = 'home' | 'servers' | 'minecraft' | 'guilds' | 'link' | 'profile' | 'publicProfile' | 'settings';
+
+function pageFromPath(): { page: Page; username: string } {
+  const publicProfile = window.location.pathname.match(/^\/u\/([A-Za-z0-9_]{3,20})\/?$/);
+  if (publicProfile) return { page: 'publicProfile', username: publicProfile[1] };
+  const routes: Record<string, Page> = { '/profile': 'profile', '/settings': 'settings', '/servers': 'servers',
+    '/minecraft': 'minecraft', '/minecraft/guilds': 'guilds', '/minecraft/link': 'link' };
+  if (routes[window.location.pathname]) return { page: routes[window.location.pathname], username: '' };
+  return { page: 'home', username: '' };
+}
+
+const pagePaths: Record<Exclude<Page, 'publicProfile'>, string> = {
+  home: '/', servers: '/servers', minecraft: '/minecraft', guilds: '/minecraft/guilds',
+  link: '/minecraft/link', profile: '/profile', settings: '/settings',
+};
 
 const navigation = [
   { page: 'home', label: 'Главная', icon: Home },
@@ -32,7 +48,8 @@ const navigation = [
 
 function App() {
   const { data: session, isPending } = authClient.useSession();
-  const [page, setPage] = useState<Page>('home');
+  const [page, setPage] = useState<Page>(() => pageFromPath().page);
+  const [viewedUsername, setViewedUsername] = useState(() => pageFromPath().username);
   const [mobileNav, setMobileNav] = useState(false);
   const [lightTheme, setLightTheme] = useState(() => localStorage.getItem('aurum-site-theme') === 'light');
   const [logoutError, setLogoutError] = useState('');
@@ -57,9 +74,20 @@ function App() {
     return () => { active = false; };
   }, [session?.user.id, preview]);
 
+  useEffect(() => {
+    const onPopState = () => {
+      const route = pageFromPath();
+      setPage(route.page);
+      setViewedUsername(route.username);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
   const go = (next: Page) => {
     setPage(next);
     setMobileNav(false);
+    window.history.pushState(null, '', `${next === 'publicProfile' ? `/u/${viewedUsername}` : pagePaths[next]}${preview ? '?preview' : ''}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -88,8 +116,8 @@ function App() {
           <span className="brand-mark"><img src="/aurum-logo.png" alt="" /></span>
           <span className="brand-text"><strong>AURUM</strong><small>ИГРОВОЕ СООБЩЕСТВО</small></span>
         </button>
-        <div className="topbar-middle"><span className="topbar-label">{page === 'minecraft' ? 'Серверы' : inMinecraft ? 'Minecraft' : 'Сообщество'}</span><span className="topbar-separator">/</span><span>{page === 'link' ? 'Привязка профиля' : page === 'guilds' ? 'Гильдии' : page === 'minecraft' ? 'Minecraft Community' : page === 'servers' ? 'Серверы' : page === 'profile' ? 'Моя страница' : page === 'settings' ? 'Настройки' : 'Главная'}</span></div>
-        <span className="preview-tag"><span />Эскиз интерфейса</span>
+        <div className="topbar-middle"><span className="topbar-label">{page === 'minecraft' ? 'Серверы' : inMinecraft ? 'Minecraft' : 'Сообщество'}</span><span className="topbar-separator">/</span><span>{page === 'link' ? 'Привязка профиля' : page === 'guilds' ? 'Гильдии' : page === 'minecraft' ? 'Minecraft Community' : page === 'servers' ? 'Серверы' : page === 'profile' ? 'Моя страница' : page === 'publicProfile' ? viewedUsername : page === 'settings' ? 'Настройки' : 'Главная'}</span></div>
+        {preview && <span className="preview-tag"><span />Эскиз интерфейса</span>}
       </header>
 
       <div className="shell">
@@ -115,7 +143,7 @@ function App() {
         </aside>
 
         <main className="content">
-          {page === 'link' ? <LinkPage onBack={() => go('minecraft')} /> : page === 'profile' ? <ProfilePage go={go} name={displayName} email={session?.user.email} avatarVersion={siteMe?.avatarUpdatedAt} /> : page === 'settings' ? <SettingsPage siteMe={siteMe} onAvatarUpdate={(avatarUpdatedAt) => setSiteMe((current) => current && { ...current, avatarUpdatedAt })} /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} /> : <HomePage page={page} go={go} />}
+          {page === 'link' ? <LinkPage onBack={() => go('minecraft')} /> : page === 'profile' || page === 'publicProfile' ? <ProfilePage key={page === 'profile' ? 'own' : `public:${viewedUsername.toLowerCase()}`} username={page === 'profile' ? session?.user.username || displayName : viewedUsername} preview={preview} imageCooldownHours={siteMe?.avatarCooldownHours || 24} onBack={() => go('home')} onLink={() => go('link')} /> : page === 'settings' ? <SettingsPage siteMe={siteMe} onAvatarUpdate={(avatarUpdatedAt) => setSiteMe((current) => current && { ...current, avatarUpdatedAt })} /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} /> : <HomePage page={page} go={go} />}
         </main>
       </div>
       {mobileNav && <button className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />}
@@ -191,12 +219,8 @@ function MinecraftPage({ go }: { go: (page: Page) => void }) {
   </div>;
 }
 
-function Avatar({ name, version, large = false }: { name: string; version?: string | null; large?: boolean }) {
-  return <span className={`avatar ${large ? 'profile-avatar' : ''}`}>{version ? <img src={`/api/site/me/avatar?v=${encodeURIComponent(version)}`} alt="" /> : name.charAt(0).toUpperCase()}</span>;
-}
-
-function ProfilePage({ go, name, email, avatarVersion }: { go: (page: Page) => void; name: string; email?: string; avatarVersion?: string | null }) {
-  return <div className="profile-page"><h1>Моя страница</h1><div className="profile-head"><Avatar name={name} version={avatarVersion} large /><div><h2>{name}</h2><span>{email ? `Email: ${email} · виден только тебе` : 'Демонстрационный профиль'}</span></div></div><section className="settings-card"><div><h2>Игровые профили</h2><p>Minecraft пока не привязан.</p></div><button className="button button-primary" onClick={() => go('link')}>Привязать Minecraft <ArrowRight size={16} /></button></section></div>;
+function Avatar({ name, version }: { name: string; version?: string | null }) {
+  return <span className="avatar">{version ? <img src={`/api/site/me/avatar?v=${encodeURIComponent(version)}`} alt="" /> : name.charAt(0).toUpperCase()}</span>;
 }
 
 function LinkPage({ onBack }: { onBack: () => void }) {
@@ -223,6 +247,7 @@ function SettingsPage({ siteMe, onAvatarUpdate }: { siteMe: { admin: boolean; av
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [cropFile, setCropFile] = useState<File | null>(null);
   const [avatarMessage, setAvatarMessage] = useState('');
   const [avatarError, setAvatarError] = useState(false);
   const [now, setNow] = useState(Date.now());
@@ -246,6 +271,14 @@ function SettingsPage({ siteMe, onAvatarUpdate }: { siteMe: { admin: boolean; av
       else { onAvatarUpdate(result.avatarUpdatedAt); setNow(Date.now()); setAvatarError(false); setAvatarMessage('Аватар обновлён.'); }
     } catch { setAvatarError(true); setAvatarMessage('Не удалось загрузить изображение.'); }
     finally { setAvatarBusy(false); }
+  };
+
+  const selectAvatar = (file?: File) => {
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 20_000_000) {
+      setAvatarError(true); setAvatarMessage('Выбери JPG, PNG или WebP до 20 МБ.'); return;
+    }
+    setCropFile(file);
   };
 
   const changePassword = async (event: FormEvent<HTMLFormElement>) => {
@@ -276,8 +309,8 @@ function SettingsPage({ siteMe, onAvatarUpdate }: { siteMe: { admin: boolean; av
     <h1>Настройки</h1>
     {siteMe?.admin && <SiteAdminSettings />}
     <section className="settings-card avatar-settings">
-      <div><h2>Аватар</h2><p>{nextAvatarAt > now ? `Следующая смена: ${new Date(nextAvatarAt).toLocaleString('ru-RU')}` : 'JPG, PNG или WebP · до 2 МБ'}</p></div>
-      <label className="button button-quiet avatar-upload">{avatarBusy ? 'Загружаем…' : 'Выбрать фото'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={avatarBusy || nextAvatarAt > now} onChange={(event) => { void uploadAvatar(event.target.files?.[0]); event.target.value = ''; }} /></label>
+      <div><h2>Аватар</h2><p>{nextAvatarAt > now ? `Следующая смена: ${new Date(nextAvatarAt).toLocaleString('ru-RU')}` : 'JPG, PNG или WebP · до 20 МБ / 16 Мп'}</p></div>
+      <label className="button button-quiet avatar-upload">{avatarBusy ? 'Загружаем…' : 'Выбрать фото'}<input type="file" accept="image/jpeg,image/png,image/webp" disabled={avatarBusy || nextAvatarAt > now} onChange={(event) => { selectAvatar(event.target.files?.[0]); event.target.value = ''; }} /></label>
       {avatarMessage && <p className={`avatar-feedback ${avatarError ? 'error' : ''}`} role={avatarError ? 'alert' : 'status'}>{avatarMessage}</p>}
     </section>
     <section className="settings-card settings-password">
@@ -291,6 +324,7 @@ function SettingsPage({ siteMe, onAvatarUpdate }: { siteMe: { admin: boolean; av
       {error && <p className="auth-error" role="alert">{error}</p>}
       {notice && <p className="auth-notice" role="status">{notice}</p>}
     </section>
+    {cropFile && <ImageCropper file={cropFile} kind="avatar" onCancel={() => setCropFile(null)} onApply={(cropped) => { setCropFile(null); void uploadAvatar(cropped); }} />}
   </div>;
 }
 

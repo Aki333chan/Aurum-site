@@ -34,7 +34,7 @@ After signing in, players land on a global home with game cards and a shared com
 - Minecraft first; other games may be added later with separate identity-linking adapters.
 - Guild catalog lists every guild. Guild leaders may restrict member roster and extended information to members. Guild feeds may be readable publicly or by members; posting can be limited to selected in-game ranks.
 - Server news is published by authorized site staff. Player-profile comments can be open to signed-in users, limited to mutually accepted friends, or disabled, per linked game profile.
-- Player pages and comments are visible only to signed-in site users. Balances and detailed player statistics are visible only to their owner by default. Email, IP addresses, and security settings are never public profile fields.
+- Player pages and comments are visible only to signed-in site users. The global site profile shows account identity and linked game profiles, but guild membership belongs only to the Minecraft profile. Balances and detailed player statistics are visible only to their owner by default. Email, IP addresses, and security settings are never public profile fields.
 - Guild membership, ranks, invitations, applications, and guild actions are authoritative in AurumGuilds. Feed content, comments, friends, and site privacy settings live in Aurum Site.
 - Social content needs pagination, reports, blocking, moderation, and safe text rendering from its first public release.
 - The current VDS is small (1 vCPU / 6 GiB), so the site must avoid constant polling of the Paper server or costly per-page reads.
@@ -45,7 +45,7 @@ Use the Aurum name and recognizable gold emblem. The existing staff panel uses a
 
 ## Evidence on Hand
 
-The existing panel in the `images` repository contains the Aurum emblem and Nocturne tokens. Companion already has a five-minute one-use web token mechanism, but a player-site link token must have its own purpose and stricter authentication boundary. AurumGuilds supports a guild list and three ranks (leader, officer, member). Aurum Site is deployed at `aurumgg.ovh` with its own PostgreSQL, verified owner, admin-only settings and replaceable avatars. SMTP is not configured and public registration remains closed. Post-login game screens still contain demonstration data, visibly labeled as such.
+The existing panel in the `images` repository contains the Aurum emblem and Nocturne tokens. Companion already has a five-minute one-use web token mechanism, but a player-site link token must have its own purpose and stricter authentication boundary. AurumGuilds supports a guild list and three ranks (leader, officer, member). Aurum Site is deployed at `aurumgg.ovh` with its own PostgreSQL, verified owner, admin-only settings and replaceable avatars and profile covers. SMTP is not configured and public registration remains closed. The global site profile has editable real text and authenticated visitor pages; post-login game screens still contain demonstration data or honest empty states.
 
 ## Product Principles
 
