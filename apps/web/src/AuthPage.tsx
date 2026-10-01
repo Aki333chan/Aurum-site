@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowRight, Eye, EyeOff, Gamepad2, Moon, Sun } from 'lucide-react';
 import { authClient } from './auth-client';
+import { LegalLinks } from './LegalDocuments';
+import { legalDocumentFromPath, type LegalDocument } from './legal-content';
 
 type Mode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
 type SiteConfig = { registrationEnabled: boolean; emailEnabled: boolean; maintenanceEnabled: boolean };
@@ -23,7 +25,7 @@ function errorMessage(error: { code?: string; status?: number } | null | undefin
   return 'Сервис авторизации сейчас недоступен или запрос не удался. Попробуй позже.';
 }
 
-export function AuthPage({ lightTheme, toggleTheme, onLoginSuccess }: { lightTheme: boolean; toggleTheme: () => void; onLoginSuccess: () => void }) {
+export function AuthPage({ lightTheme, toggleTheme, onLoginSuccess, onOpenLegal }: { lightTheme: boolean; toggleTheme: () => void; onLoginSuccess: () => void; onOpenLegal: (document: LegalDocument) => void }) {
   const [mode, setMode] = useState<Mode>(modeFromPath);
   const [email, setEmail] = useState('');
   const [nickname, setNickname] = useState('');
@@ -51,7 +53,7 @@ export function AuthPage({ lightTheme, toggleTheme, onLoginSuccess }: { lightThe
   }, []);
 
   useEffect(() => {
-    const onPopState = () => setMode(modeFromPath());
+    const onPopState = () => { if (!legalDocumentFromPath()) setMode(modeFromPath()); };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
@@ -167,11 +169,13 @@ export function AuthPage({ lightTheme, toggleTheme, onLoginSuccess }: { lightThe
           {(mode === 'register' || mode === 'reset') && <label className="auth-field">Подтверди пароль<input type={showPassword ? 'text' : 'password'} name="confirmation" value={confirmation} onChange={(event) => { setConfirmation(event.target.value); setError(''); }} autoComplete="new-password" required disabled={busy} /></label>}
           {mode === 'login' && siteConfig?.emailEnabled && <button type="button" className="auth-inline-link auth-forgot" onClick={() => navigate('forgot')}>Забыл пароль?</button>}
           <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'Подождите…' : mode === 'login' ? 'Войти' : mode === 'register' ? 'Зарегистрироваться' : mode === 'verify' ? 'Отправить письмо ещё раз' : mode === 'forgot' ? 'Отправить ссылку' : 'Сменить пароль'}{!busy && <ArrowRight size={18} />}</button>
+          {mode === 'register' && <p className="auth-terms-notice">Регистрируясь, ты принимаешь <a href="/terms" onClick={(event) => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); onOpenLegal('terms'); } }}>условия использования</a>.</p>}
         </form>}
 
         {(!maintenance || adminLogin) && <div className="auth-switch">
           {maintenance ? <button type="button" onClick={() => setAdminLogin(false)}>К объявлению</button> : mode === 'login' ? <>Нет аккаунта? <button type="button" onClick={() => navigate('register')}>Зарегистрируйтесь</button></> : mode === 'register' ? <>Уже есть аккаунт? <button type="button" onClick={() => navigate('login')}>Войти</button></> : <button type="button" onClick={() => navigate('login')}>Вернуться ко входу</button>}
         </div>}
+        <LegalLinks onOpen={onOpenLegal} />
       </section>
     </main>
   </div>;

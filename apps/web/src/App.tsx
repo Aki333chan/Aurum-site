@@ -3,6 +3,8 @@ import { AuthPage } from './AuthPage';
 import { authClient } from './auth-client';
 import { SiteAdminSettings } from './SiteAdminSettings';
 import { ProfilePage } from './ProfilePage';
+import { LegalDialog, LegalLinks } from './LegalDocuments';
+import { legalDocumentFromPath, legalPaths, type LegalDocument } from './legal-content';
 import {
   ArrowLeft,
   ArrowRight,
@@ -55,6 +57,7 @@ function App() {
   const [siteMe, setSiteMe] = useState<{ admin: boolean; avatarUpdatedAt: string | null; avatarCooldownHours: number } | null>(null);
   const [maintenance, setMaintenance] = useState(false);
   const [loginTransition, setLoginTransition] = useState(false);
+  const [legalDocument, setLegalDocument] = useState<LegalDocument | null>(legalDocumentFromPath);
   const inMinecraft = page === 'minecraft' || page === 'guilds' || page === 'link';
   const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview');
   const transitionPreview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('transition');
@@ -75,6 +78,9 @@ function App() {
 
   useEffect(() => {
     const onPopState = () => {
+      const document = legalDocumentFromPath();
+      setLegalDocument(document);
+      if (document) return;
       const route = pageFromPath();
       setPage(route.page);
       setViewedUsername(route.username);
@@ -96,17 +102,34 @@ function App() {
     localStorage.setItem('aurum-site-theme', next ? 'light' : 'dark');
   };
 
+  const openLegal = (document: LegalDocument) => {
+    const path = `${legalPaths[document]}${preview ? '?preview' : ''}`;
+    if (legalDocument) window.history.replaceState(window.history.state, '', path);
+    else window.history.pushState({ aurumLegal: true }, '', path);
+    setLegalDocument(document);
+  };
+
+  const closeLegal = () => {
+    if (window.history.state?.aurumLegal) window.history.back();
+    else {
+      window.history.replaceState(null, '', session || preview ? `/${preview ? '?preview' : ''}` : '/login');
+      setLegalDocument(null);
+    }
+  };
+  const legalOverlay = legalDocument && <LegalDialog document={legalDocument} onOpen={openLegal} onClose={closeLegal} />;
+
   const signOut = async () => {
     const { error } = await authClient.signOut();
     if (error) setLogoutError('Не удалось выйти. Попробуй ещё раз.');
     else window.history.replaceState(null, '', '/login');
   };
 
-  if (isPending && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}><main className="auth-loading" role="status">Проверяем вход в Aurum…</main>{transition}</div>;
-  if ((!session || maintenance) && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}><AuthPage lightTheme={lightTheme} toggleTheme={toggleTheme} onLoginSuccess={() => setLoginTransition(true)} />{transition}</div>;
+  if (isPending && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}>{legalOverlay}<main className="auth-loading" role="status">Проверяем вход в Aurum…</main>{transition}</div>;
+  if ((!session || maintenance) && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}>{legalOverlay}<AuthPage lightTheme={lightTheme} toggleTheme={toggleTheme} onLoginSuccess={() => setLoginTransition(true)} onOpenLegal={openLegal} />{transition}</div>;
 
   return (
     <div className={`app ${lightTheme ? 'theme-light' : ''}`}>
+      {legalOverlay}
       <header className="topbar">
         <button className="mobile-menu icon-button" aria-label="Открыть меню" onClick={() => setMobileNav(true)}>
           <Menu size={20} />
@@ -138,6 +161,7 @@ function App() {
             <button className="nav-item theme-button" aria-label="Светлая тема" aria-pressed={lightTheme} onClick={toggleTheme}>{lightTheme ? <Moon size={19} strokeWidth={1.8} /> : <Sun size={19} strokeWidth={1.8} />}<span>Светлая тема</span><span className={`theme-switch ${lightTheme ? 'on' : ''}`} aria-hidden="true" /></button>
             <button className="nav-item logout-button" onClick={signOut} disabled={preview}><LogOut size={19} strokeWidth={1.8} /><span>Выйти</span></button>
             {logoutError && <p className="sidebar-error" role="alert">{logoutError}</p>}
+            <LegalLinks onOpen={openLegal} compact />
           </div>
         </aside>
 
