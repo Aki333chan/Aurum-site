@@ -16,7 +16,7 @@ type Profile = {
   minecraftProfiles?: MinecraftProfile[];
 };
 
-type Tab = 'overview' | 'posts' | 'comments';
+type Tab = 'overview' | 'comments';
 type MediaKind = 'avatar' | 'banner';
 
 export function ProfilePage({
@@ -391,7 +391,6 @@ export function ProfilePage({
         {(
           [
             ['overview', 'Обзор'],
-            ['posts', 'Записи'],
             ['comments', 'Комментарии'],
           ] as const
         ).map(([value, label]) => (
@@ -466,7 +465,7 @@ export function ProfilePage({
       ) : (
         <section className="profile-section profile-tab-panel">
           {!preview ? (
-            <Feed key={tab} scope={`profile:${profile.username}`} kind={tab} onUser={onUser} />
+            <Feed scope={`profile:${profile.username}`} kind="comments" onUser={onUser} />
           ) : (
             <p className="profile-empty">Доступно после входа.</p>
           )}

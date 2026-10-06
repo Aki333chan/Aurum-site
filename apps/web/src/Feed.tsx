@@ -157,7 +157,7 @@ export function Feed({
           {kind === 'comments' ? 'Пока нет комментариев.' : 'Пока нет записей.'}
         </p>
       ) : null}
-      <div className="feed-items">
+      <div className={`feed-items${kind === 'posts' ? ' feed-posts' : ''}`}>
         {page?.items.map((item) => (
           <article key={item.id} className="feed-item">
             <header>
