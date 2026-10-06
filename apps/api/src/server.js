@@ -4,13 +4,28 @@ import sharp from 'sharp';
 import nodemailer from 'nodemailer';
 import { auth } from './auth.js';
 import { readConfig } from './config.js';
-import { encryptSecret, getSiteSettings, initSiteData, invalidateSiteSettings, isSiteAdmin, normalizeProfileInput, pool } from './site-data.js';
+import {
+  encryptSecret,
+  getSiteSettings,
+  initSiteData,
+  invalidateSiteSettings,
+  isSiteAdmin,
+  normalizeProfileInput,
+  pool,
+} from './site-data.js';
 import { bridgeRequest, LinkError, linkMinecraftProfile, minecraftProfiles } from './minecraft-link.js';
-import { minecraftGuildDirectory, minecraftProfileData } from './minecraft-data.js';
+import { minecraftGuildDirectory, minecraftProfileData, minecraftServerId } from './minecraft-data.js';
+import { SiteError, canSee, changeSiteAdmin, isSiteOwner, listSiteUsers, writeLimit } from './site-access.js';
+import { communityRoutes } from './community-routes.js';
+import { profileAccess } from './social-data.js';
 
 const config = readConfig();
 const handleAuth = toNodeHandler(auth);
-const emailPaths = new Set(['/api/auth/request-password-reset', '/api/auth/forget-password', '/api/auth/send-verification-email']);
+const emailPaths = new Set([
+  '/api/auth/request-password-reset',
+  '/api/auth/forget-password',
+  '/api/auth/send-verification-email',
+]);
 
 function json(res, status, body) {
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -29,6 +44,18 @@ async function readBody(req, limit) {
   return Buffer.concat(chunks);
 }
 
+async function readJson(req, limit) {
+  if (req.headers['content-type']?.split(';')[0] !== 'application/json')
+    throw new SiteError(415, 'JSON required');
+  try {
+    const body = JSON.parse((await readBody(req, limit)).toString('utf8'));
+    if (!body || Array.isArray(body) || typeof body !== 'object') throw new Error('Invalid object');
+    return body;
+  } catch (error) {
+    throw new SiteError(error.message === 'Body too large' ? 413 : 400, 'Проверь данные.');
+  }
+}
+
 async function sessionFor(req) {
   return auth.api.getSession({ headers: fromNodeHeaders(req.headers) });
 }
@@ -38,7 +65,9 @@ function safeSettings(settings) {
   return { ...publicSettings, smtpHasPassword: Boolean(smtpPassword) };
 }
 
-function validText(value, max) { return typeof value === 'string' && value.length <= max; }
+function validText(value, max) {
+  return typeof value === 'string' && value.length <= max;
+}
 
 async function updateSettings(body, current) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error('Invalid settings');
@@ -48,21 +77,42 @@ async function updateSettings(body, current) {
   for (const field of ['smtpHost', 'smtpUser', 'smtpFrom']) {
     if (!validText(body[field], 254)) throw new Error(`Invalid ${field}`);
   }
-  if (!Number.isInteger(body.smtpPort) || body.smtpPort < 1 || body.smtpPort > 65535) throw new Error('Invalid SMTP port');
-  if (!Number.isInteger(body.avatarCooldownHours) || body.avatarCooldownHours < 1 || body.avatarCooldownHours > 720) throw new Error('Invalid avatar cooldown');
-  if (body.smtpPassword !== undefined && !validText(body.smtpPassword, 1024)) throw new Error('Invalid SMTP password');
+  if (!Number.isInteger(body.smtpPort) || body.smtpPort < 1 || body.smtpPort > 65535)
+    throw new Error('Invalid SMTP port');
+  if (
+    !Number.isInteger(body.avatarCooldownHours) ||
+    body.avatarCooldownHours < 1 ||
+    body.avatarCooldownHours > 720
+  )
+    throw new Error('Invalid avatar cooldown');
+  if (body.smtpPassword !== undefined && !validText(body.smtpPassword, 1024))
+    throw new Error('Invalid SMTP password');
   const nextPassword = body.smtpPassword || current.smtpPassword;
-  const smtpChanged = ['smtpHost', 'smtpPort', 'smtpUser', 'smtpFrom'].some((field) => body[field] !== current[field]) || Boolean(body.smtpPassword);
+  const smtpChanged =
+    ['smtpHost', 'smtpPort', 'smtpUser', 'smtpFrom'].some((field) => body[field] !== current[field]) ||
+    Boolean(body.smtpPassword);
   const testedAt = smtpChanged ? null : current.smtpTestedAt;
   const emailEnabled = smtpChanged ? false : body.emailEnabled;
   const registrationEnabled = smtpChanged ? false : body.registrationEnabled;
   if (emailEnabled && !testedAt) throw new Error('Сначала сохрани SMTP и отправь тестовое письмо');
   if (registrationEnabled && !emailEnabled) throw new Error('Для регистрации сначала включи почту');
-  await pool.query(`UPDATE site_settings SET
+  await pool.query(
+    `UPDATE site_settings SET
     maintenance_enabled=$1, registration_enabled=$2, email_enabled=$3, smtp_host=$4, smtp_port=$5,
     smtp_user=$6, smtp_password=$7, smtp_from=$8, smtp_tested_at=$9, avatar_cooldown_hours=$10 WHERE id=1`,
-  [body.maintenanceEnabled, registrationEnabled, emailEnabled, body.smtpHost.trim(), body.smtpPort,
-    body.smtpUser.trim(), encryptSecret(nextPassword), body.smtpFrom.trim(), testedAt, body.avatarCooldownHours]);
+    [
+      body.maintenanceEnabled,
+      registrationEnabled,
+      emailEnabled,
+      body.smtpHost.trim(),
+      body.smtpPort,
+      body.smtpUser.trim(),
+      encryptSecret(nextPassword),
+      body.smtpFrom.trim(),
+      testedAt,
+      body.avatarCooldownHours,
+    ],
+  );
   invalidateSiteSettings();
   return getSiteSettings();
 }
@@ -70,11 +120,12 @@ async function updateSettings(body, current) {
 function imageFormat(buffer) {
   if (buffer.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff]))) return 'image/jpeg';
   if (buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))) return 'image/png';
-  if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
+  if (buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP')
+    return 'image/webp';
   return null;
 }
 
-const server = createServer(async (req, res) => {
+export const server = createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', 'http://localhost');
     const path = url.pathname;
@@ -84,17 +135,35 @@ const server = createServer(async (req, res) => {
     }
     const settings = await getSiteSettings();
     if (path === '/api/site/config' && req.method === 'GET') {
-      return json(res, 200, { registrationEnabled: settings.registrationEnabled && !settings.maintenanceEnabled,
-        emailEnabled: settings.emailEnabled, maintenanceEnabled: settings.maintenanceEnabled });
+      return json(res, 200, {
+        registrationEnabled: settings.registrationEnabled && !settings.maintenanceEnabled,
+        emailEnabled: settings.emailEnabled,
+        maintenanceEnabled: settings.maintenanceEnabled,
+      });
     }
-    if (req.method !== 'GET' && req.method !== 'HEAD' && !path.startsWith('/api/auth/') && req.headers.origin && req.headers.origin !== config.publicUrl) {
+    if (
+      req.method !== 'GET' &&
+      req.method !== 'HEAD' &&
+      !path.startsWith('/api/auth/') &&
+      req.headers.origin !== config.publicUrl
+    ) {
       return json(res, 403, { error: 'Invalid origin' });
     }
     if (path.startsWith('/api/auth/')) {
-      if (!settings.emailEnabled && emailPaths.has(path)) return json(res, 503, { error: 'Email delivery is not configured' });
-      if (settings.maintenanceEnabled && !['/api/auth/sign-in/email', '/api/auth/sign-in/username', '/api/auth/sign-out'].includes(path)) {
+      if (!settings.emailEnabled && emailPaths.has(path))
+        return json(res, 503, { error: 'Email delivery is not configured' });
+      if (
+        settings.maintenanceEnabled &&
+        ![
+          '/api/auth/sign-in/email',
+          '/api/auth/sign-in/username',
+          '/api/auth/sign-out',
+          '/api/auth/two-factor/verify-totp',
+          '/api/auth/two-factor/verify-backup-code',
+        ].includes(path)
+      ) {
         const session = await sessionFor(req);
-        if (!session || !await isSiteAdmin(session.user.id)) {
+        if (!session || !(await isSiteAdmin(session.user.id))) {
           if (path === '/api/auth/get-session') return json(res, 200, null);
           return json(res, 503, { error: 'Site maintenance' });
         }
@@ -107,81 +176,230 @@ const server = createServer(async (req, res) => {
     const admin = await isSiteAdmin(session.user.id);
     if (settings.maintenanceEnabled && !admin) return json(res, 503, { error: 'Site maintenance' });
 
+    if (
+      await communityRoutes({
+        req,
+        res,
+        url,
+        db: pool,
+        config,
+        actor: session.user.id,
+        admin,
+        json,
+        readJson,
+        readBody,
+        imageFormat,
+        cooldownHours: settings.avatarCooldownHours,
+        resizeImage: (buffer, kind) =>
+          sharp(buffer, { limitInputPixels: kind === 'avatar' ? 16_000_000 : 24_000_000, failOn: 'warning' })
+            .rotate()
+            .resize(kind === 'avatar' ? 256 : 1600, kind === 'avatar' ? 256 : 400, { fit: 'cover' })
+            .webp({ quality: 82 })
+            .toBuffer(),
+      })
+    )
+      return;
+
     if (path === '/api/site/minecraft' && req.method === 'GET') {
       const profiles = await minecraftProfiles(pool, session.user.id);
       try {
         const { servers } = await bridgeRequest(config, 'servers');
-        if (!Array.isArray(servers) || servers.length > 32 || servers.some(item => !item
-          || typeof item.id !== 'string' || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(item.id)
-          || typeof item.name !== 'string' || !item.name || item.name.length > 120)) throw new LinkError(503, 'Список серверов недоступен.');
-        return json(res, 200, { available: true, servers: servers.map(({ id, name }) => ({ id, name })), profiles });
+        if (
+          !Array.isArray(servers) ||
+          servers.length > 32 ||
+          servers.some(
+            (item) =>
+              !item ||
+              typeof item.id !== 'string' ||
+              !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(item.id) ||
+              typeof item.name !== 'string' ||
+              !item.name ||
+              item.name.length > 120,
+          )
+        )
+          throw new LinkError(503, 'Список серверов недоступен.');
+        return json(res, 200, {
+          available: true,
+          servers: servers.map(({ id, name }) => ({ id, name })),
+          profiles,
+        });
       } catch (error) {
-        return json(res, 200, { available: false, servers: [], profiles,
-          error: error instanceof LinkError ? error.message : 'Связь с игрой временно недоступна.' });
+        return json(res, 200, {
+          available: false,
+          servers: [],
+          profiles,
+          error: error instanceof LinkError ? error.message : 'Связь с игрой временно недоступна.',
+        });
       }
     }
     if (path === '/api/site/minecraft/link' && req.method === 'POST') {
       if (!session.user.emailVerified) return json(res, 403, { error: 'Сначала подтверди email.' });
       if (req.headers.origin !== config.publicUrl) return json(res, 403, { error: 'Invalid origin' });
-      if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'JSON required' });
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json')
+        return json(res, 415, { error: 'JSON required' });
       let body;
-      try { body = JSON.parse((await readBody(req, 1024)).toString('utf8')); }
-      catch (error) { return json(res, error.message === 'Body too large' ? 413 : 400, { error: 'Некорректные данные привязки.' }); }
-      try { return json(res, 201, { profile: await linkMinecraftProfile(pool, config, session.user.id, body) }); }
-      catch (error) { if (error instanceof LinkError) return json(res, error.status, { error: error.message }); throw error; }
+      try {
+        body = JSON.parse((await readBody(req, 1024)).toString('utf8'));
+      } catch (error) {
+        return json(res, error.message === 'Body too large' ? 413 : 400, {
+          error: 'Некорректные данные привязки.',
+        });
+      }
+      try {
+        return json(res, 201, { profile: await linkMinecraftProfile(pool, config, session.user.id, body) });
+      } catch (error) {
+        if (error instanceof LinkError) return json(res, error.status, { error: error.message });
+        throw error;
+      }
     }
 
-    if (['/api/site/minecraft/profile', '/api/site/minecraft/guilds'].includes(path) && req.method === 'GET') {
+    if (
+      ['/api/site/minecraft/profile', '/api/site/minecraft/guilds'].includes(path) &&
+      req.method === 'GET'
+    ) {
       const profile = path.endsWith('/profile');
-      if (url.searchParams.getAll('server').length !== 1 || [...url.searchParams.keys()].some(key => !['server', ...(profile ? [] : ['q'])].includes(key)))
+      if (
+        url.searchParams.getAll('server').length !== 1 ||
+        [...url.searchParams.keys()].some((key) => !['server', ...(profile ? ['user'] : ['q'])].includes(key))
+      )
         return json(res, 400, { error: 'Некорректный запрос к игре.' });
       try {
-        const result = profile
-          ? await minecraftProfileData(pool, config, session.user.id, url.searchParams.get('server'))
-          : await minecraftGuildDirectory(config, url.searchParams.get('server'), url.searchParams.get('q') || '');
+        const serverId = minecraftServerId(url.searchParams.get('server'));
+        let result;
+        if (profile && url.searchParams.has('user')) {
+          if (url.searchParams.getAll('user').length !== 1) throw new SiteError(400, 'Некорректный запрос.');
+          await profileAccess(pool, session.user.id, url.searchParams.get('user'));
+          const access = await profileAccess(
+            pool,
+            session.user.id,
+            url.searchParams.get('user'),
+            `minecraft:${serverId}`,
+          );
+          const snapshot = await minecraftProfileData(pool, config, access.target.id, serverId);
+          const visible = canSee(access.settings.statistics, access.relation);
+          const linked = (await minecraftProfiles(pool, access.target.id, false)).find(
+            (item) => item.serverId === serverId,
+          );
+          const publicMember = snapshot.guild.membership
+            ? {
+                guildId: snapshot.guild.membership.guildId,
+                guildName: snapshot.guild.membership.guildName,
+                guildTag: snapshot.guild.membership.guildTag,
+              }
+            : null;
+          result = {
+            ...snapshot,
+            player: visible ? snapshot.player : null,
+            balance: visible ? snapshot.balance : null,
+            guild: {
+              ...snapshot.guild,
+              membership: access.relation.own ? snapshot.guild.membership : publicMember,
+            },
+            statisticsVisible: visible,
+            profile: linked,
+          };
+        } else
+          result = profile
+            ? await minecraftProfileData(pool, config, session.user.id, url.searchParams.get('server'))
+            : await minecraftGuildDirectory(
+                config,
+                url.searchParams.get('server'),
+                url.searchParams.get('q') || '',
+              );
+        if (profile && result.guild?.membership) {
+          const member = result.guild.membership;
+          const metadata = (
+            await pool.query(
+              'SELECT description,avatar_updated_at AS "avatarUpdatedAt" FROM site_guild WHERE server_id=$1 AND guild_id=$2',
+              [serverId, member.guildId],
+            )
+          ).rows[0];
+          result = { ...result, guild: { ...result.guild, membership: { ...member, ...(metadata || {}) } } };
+        }
         return json(res, 200, result);
-      } catch (error) { if (error instanceof LinkError) return json(res, error.status, { error: error.message }); throw error; }
+      } catch (error) {
+        if (error instanceof LinkError) return json(res, error.status, { error: error.message });
+        throw error;
+      }
     }
 
     if (path === '/api/site/me' && req.method === 'GET') {
-      const avatar = await pool.query('SELECT updated_at FROM site_avatar WHERE user_id=$1', [session.user.id]);
-      return json(res, 200, { admin, avatarUpdatedAt: avatar.rows[0]?.updated_at || null,
-        avatarCooldownHours: settings.avatarCooldownHours });
+      const avatar = await pool.query('SELECT updated_at FROM site_avatar WHERE user_id=$1', [
+        session.user.id,
+      ]);
+      return json(res, 200, {
+        admin,
+        owner: await isSiteOwner(pool, session.user.id),
+        avatarUpdatedAt: avatar.rows[0]?.updated_at || null,
+        avatarCooldownHours: settings.avatarCooldownHours,
+      });
     }
     if (path === '/api/site/me/profile' && req.method === 'PUT') {
-      if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'JSON required' });
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json')
+        return json(res, 415, { error: 'JSON required' });
       let profile;
-      try { profile = normalizeProfileInput(JSON.parse((await readBody(req, 2048)).toString('utf8'))); }
-      catch (error) { return json(res, error.message === 'Body too large' ? 413 : 400,
-        { error: error instanceof SyntaxError ? 'Некорректные данные профиля' : error.message }); }
-      await pool.query(`INSERT INTO site_profile (user_id, tagline, about) VALUES ($1, $2, $3)
+      try {
+        profile = normalizeProfileInput(JSON.parse((await readBody(req, 2048)).toString('utf8')));
+      } catch (error) {
+        return json(res, error.message === 'Body too large' ? 413 : 400, {
+          error: error instanceof SyntaxError ? 'Некорректные данные профиля' : error.message,
+        });
+      }
+      await pool.query(
+        `INSERT INTO site_profile (user_id, tagline, about) VALUES ($1, $2, $3)
         ON CONFLICT (user_id) DO UPDATE SET tagline=EXCLUDED.tagline, about=EXCLUDED.about, updated_at=now()`,
-      [session.user.id, profile.tagline, profile.about]);
+        [session.user.id, profile.tagline, profile.about],
+      );
       return json(res, 200, profile);
     }
     const profilePath = path.match(/^\/api\/site\/profile\/([A-Za-z0-9_]{3,20})(\/(avatar|banner))?$/);
     if (profilePath && req.method === 'GET') {
       const username = profilePath[1];
+      const access = await profileAccess(pool, session.user.id, username);
       if (profilePath[2]) {
         const table = profilePath[3] === 'banner' ? 'site_banner' : 'site_avatar';
-        const image = await pool.query(`SELECT a.image FROM ${table} a JOIN "user" u ON u.id=a.user_id
-          WHERE lower(u.username)=lower($1)`, [username]);
+        const image = await pool.query(
+          `SELECT a.image FROM ${table} a JOIN "user" u ON u.id=a.user_id
+          WHERE lower(u.username)=lower($1)`,
+          [username],
+        );
         if (!image.rows[0]) return json(res, 404, { error: 'No image' });
         res.setHeader('Content-Type', 'image/webp');
         res.setHeader('Cache-Control', 'private, no-store');
         res.setHeader('X-Content-Type-Options', 'nosniff');
         return res.writeHead(200).end(image.rows[0].image);
       }
-      const profile = await pool.query(`SELECT u.id, u.username, u."displayUsername" AS "displayName",
+      const profile = await pool.query(
+        `SELECT u.id, u.username, u."displayUsername" AS "displayName",
         COALESCE(p.tagline, '') AS tagline, COALESCE(p.about, '') AS about,
         a.updated_at AS "avatarUpdatedAt", b.updated_at AS "bannerUpdatedAt"
         FROM "user" u LEFT JOIN site_profile p ON p.user_id=u.id
         LEFT JOIN site_avatar a ON a.user_id=u.id LEFT JOIN site_banner b ON b.user_id=u.id
-        WHERE lower(u.username)=lower($1)`, [username]);
+        WHERE lower(u.username)=lower($1)`,
+        [username],
+      );
       if (!profile.rows[0]) return json(res, 404, { error: 'Profile not found' });
       const { id, ...publicProfile } = profile.rows[0];
-      return json(res, 200, { ...publicProfile, own: id === session.user.id,
-        minecraftProfiles: await minecraftProfiles(pool, id, id === session.user.id) });
+      let linked = await minecraftProfiles(pool, id, id === session.user.id);
+      if (id !== session.user.id) {
+        const modes = new Map(
+          (
+            await pool.query(
+              "SELECT scope,profile FROM site_privacy WHERE user_id=$1 AND scope LIKE 'minecraft:%'",
+              [id],
+            )
+          ).rows.map((row) => [row.scope, row.profile]),
+        );
+        linked = linked.filter((item) =>
+          canSee(modes.get(`minecraft:${item.serverId}`) || 'ALL', access.relation),
+        );
+      }
+      return json(res, 200, {
+        ...publicProfile,
+        own: id === session.user.id,
+        relationship: access.relation,
+        minecraftProfiles: linked,
+      });
     }
     if (path === '/api/site/me/avatar' && req.method === 'GET') {
       const avatar = await pool.query('SELECT image FROM site_avatar WHERE user_id=$1', [session.user.id]);
@@ -193,10 +411,17 @@ const server = createServer(async (req, res) => {
     }
     if (path === '/api/site/me/avatar' && req.method === 'PUT') {
       const type = String(req.headers['content-type'] || '').split(';')[0];
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) return json(res, 415, { error: 'Choose JPG, PNG or WebP' });
-      if (Number(req.headers['content-length'] || 0) > 2_000_000) return json(res, 413, { error: 'Image exceeds 2 MB' });
-      const previous = await pool.query('SELECT updated_at FROM site_avatar WHERE user_id=$1', [session.user.id]);
-      if (previous.rows[0] && Date.now() < new Date(previous.rows[0].updated_at).getTime() + settings.avatarCooldownHours * 3600_000) {
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(type))
+        return json(res, 415, { error: 'Choose JPG, PNG or WebP' });
+      if (Number(req.headers['content-length'] || 0) > 2_000_000)
+        return json(res, 413, { error: 'Image exceeds 2 MB' });
+      const previous = await pool.query('SELECT updated_at FROM site_avatar WHERE user_id=$1', [
+        session.user.id,
+      ]);
+      if (
+        previous.rows[0] &&
+        Date.now() < new Date(previous.rows[0].updated_at).getTime() + settings.avatarCooldownHours * 3600_000
+      ) {
         return json(res, 429, { error: 'Avatar change is on cooldown' });
       }
       const input = await readBody(req, 2_000_000);
@@ -204,21 +429,35 @@ const server = createServer(async (req, res) => {
       let image;
       try {
         image = await sharp(input, { limitInputPixels: 16_000_000, failOn: 'warning' })
-          .rotate().resize(256, 256, { fit: 'cover' }).webp({ quality: 82 }).toBuffer();
-      } catch { return json(res, 415, { error: 'Invalid image' }); }
-      const saved = await pool.query(`INSERT INTO site_avatar (user_id, image) VALUES ($1, $2)
+          .rotate()
+          .resize(256, 256, { fit: 'cover' })
+          .webp({ quality: 82 })
+          .toBuffer();
+      } catch {
+        return json(res, 415, { error: 'Invalid image' });
+      }
+      const saved = await pool.query(
+        `INSERT INTO site_avatar (user_id, image) VALUES ($1, $2)
         ON CONFLICT (user_id) DO UPDATE SET image=EXCLUDED.image, updated_at=now()
         WHERE site_avatar.updated_at <= now() - ($3::integer * interval '1 hour') RETURNING updated_at`,
-      [session.user.id, image, settings.avatarCooldownHours]);
+        [session.user.id, image, settings.avatarCooldownHours],
+      );
       if (!saved.rowCount) return json(res, 429, { error: 'Avatar change is on cooldown' });
       return json(res, 200, { avatarUpdatedAt: saved.rows[0].updated_at });
     }
     if (path === '/api/site/me/banner' && req.method === 'PUT') {
       const type = String(req.headers['content-type'] || '').split(';')[0];
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(type)) return json(res, 415, { error: 'Choose JPG, PNG or WebP' });
-      if (Number(req.headers['content-length'] || 0) > 4_000_000) return json(res, 413, { error: 'Image exceeds 4 MB' });
-      const previous = await pool.query('SELECT updated_at FROM site_banner WHERE user_id=$1', [session.user.id]);
-      if (previous.rows[0] && Date.now() < new Date(previous.rows[0].updated_at).getTime() + settings.avatarCooldownHours * 3600_000) {
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(type))
+        return json(res, 415, { error: 'Choose JPG, PNG or WebP' });
+      if (Number(req.headers['content-length'] || 0) > 4_000_000)
+        return json(res, 413, { error: 'Image exceeds 4 MB' });
+      const previous = await pool.query('SELECT updated_at FROM site_banner WHERE user_id=$1', [
+        session.user.id,
+      ]);
+      if (
+        previous.rows[0] &&
+        Date.now() < new Date(previous.rows[0].updated_at).getTime() + settings.avatarCooldownHours * 3600_000
+      ) {
         return json(res, 429, { error: 'Banner change is on cooldown' });
       }
       const input = await readBody(req, 4_000_000);
@@ -226,57 +465,141 @@ const server = createServer(async (req, res) => {
       let image;
       try {
         image = await sharp(input, { limitInputPixels: 24_000_000, failOn: 'warning' })
-          .rotate().resize(1600, 400, { fit: 'cover' }).webp({ quality: 80 }).toBuffer();
-      } catch { return json(res, 415, { error: 'Invalid image' }); }
-      const saved = await pool.query(`INSERT INTO site_banner (user_id, image) VALUES ($1, $2)
+          .rotate()
+          .resize(1600, 400, { fit: 'cover' })
+          .webp({ quality: 80 })
+          .toBuffer();
+      } catch {
+        return json(res, 415, { error: 'Invalid image' });
+      }
+      const saved = await pool.query(
+        `INSERT INTO site_banner (user_id, image) VALUES ($1, $2)
         ON CONFLICT (user_id) DO UPDATE SET image=EXCLUDED.image, updated_at=now()
         WHERE site_banner.updated_at <= now() - ($3::integer * interval '1 hour') RETURNING updated_at`,
-      [session.user.id, image, settings.avatarCooldownHours]);
+        [session.user.id, image, settings.avatarCooldownHours],
+      );
       if (!saved.rowCount) return json(res, 429, { error: 'Banner change is on cooldown' });
       return json(res, 200, { bannerUpdatedAt: saved.rows[0].updated_at });
     }
 
     if (path.startsWith('/api/site/admin/')) {
       if (!admin) return json(res, 403, { error: 'Admin access required' });
-      if (path === '/api/site/admin/settings' && req.method === 'GET') return json(res, 200, safeSettings(settings));
-      if (path === '/api/site/admin/settings' && req.method === 'PUT') {
-        if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'JSON required' });
+      if (path === '/api/site/admin/users' && req.method === 'GET') {
+        return json(
+          res,
+          200,
+          await listSiteUsers(
+            pool,
+            session.user.id,
+            url.searchParams.get('q') || '',
+            Number(url.searchParams.get('offset') || 0),
+          ),
+        );
+      }
+      if (path === '/api/site/admin/users' && req.method === 'PUT') {
+        if (!(await isSiteOwner(pool, session.user.id)))
+          throw new SiteError(403, 'Только владелец может управлять ролями.');
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json')
+          return json(res, 415, { error: 'JSON required' });
         let body;
-        try { body = JSON.parse((await readBody(req, 8192)).toString('utf8')); } catch { return json(res, 400, { error: 'Invalid JSON' }); }
-        try { return json(res, 200, safeSettings(await updateSettings(body, settings))); }
-        catch (error) { return json(res, 400, { error: error.message }); }
+        try {
+          body = JSON.parse((await readBody(req, 2048)).toString('utf8'));
+        } catch {
+          throw new SiteError(400, 'Проверь данные.');
+        }
+        if (
+          !body ||
+          typeof body.password !== 'string' ||
+          body.password.length > 128 ||
+          Object.keys(body).some((key) => !['userId', 'admin', 'password'].includes(key))
+        )
+          throw new SiteError(400, 'Подтверди действие паролем.');
+        await writeLimit(pool, session.user.id, 'roles', 5);
+        try {
+          await auth.api.verifyPassword({
+            body: { password: body.password },
+            headers: fromNodeHeaders(req.headers),
+          });
+        } catch {
+          throw new SiteError(403, 'Проверь пароль. Если вход был давно, войди снова.');
+        }
+        return json(
+          res,
+          200,
+          await changeSiteAdmin(pool, session.user.id, { userId: body.userId, admin: body.admin }),
+        );
+      }
+      if (path === '/api/site/admin/settings' && req.method === 'GET')
+        return json(res, 200, safeSettings(settings));
+      if (path === '/api/site/admin/settings' && req.method === 'PUT') {
+        if (req.headers['content-type']?.split(';')[0] !== 'application/json')
+          return json(res, 415, { error: 'JSON required' });
+        let body;
+        try {
+          body = JSON.parse((await readBody(req, 8192)).toString('utf8'));
+        } catch {
+          return json(res, 400, { error: 'Invalid JSON' });
+        }
+        try {
+          return json(res, 200, safeSettings(await updateSettings(body, settings)));
+        } catch (error) {
+          return json(res, 400, { error: error.message });
+        }
       }
       if (path === '/api/site/admin/smtp/test' && req.method === 'POST') {
-        if (!settings.smtpHost || !settings.smtpPort || !settings.smtpUser || !settings.smtpPassword || !settings.smtpFrom) {
+        if (
+          !settings.smtpHost ||
+          !settings.smtpPort ||
+          !settings.smtpUser ||
+          !settings.smtpPassword ||
+          !settings.smtpFrom
+        ) {
           return json(res, 400, { error: 'Fill in SMTP settings first' });
         }
-        const transport = nodemailer.createTransport({ host: settings.smtpHost, port: settings.smtpPort,
-          secure: settings.smtpPort === 465, requireTLS: settings.smtpPort !== 465,
-          auth: { user: settings.smtpUser, pass: settings.smtpPassword }, connectionTimeout: 10000, greetingTimeout: 10000 });
+        const transport = nodemailer.createTransport({
+          host: settings.smtpHost,
+          port: settings.smtpPort,
+          secure: settings.smtpPort === 465,
+          requireTLS: settings.smtpPort !== 465,
+          auth: { user: settings.smtpUser, pass: settings.smtpPassword },
+          connectionTimeout: 10000,
+          greetingTimeout: 10000,
+        });
         try {
           await transport.verify();
-          await transport.sendMail({ from: settings.smtpFrom, to: session.user.email,
-            subject: 'Aurum — проверка почты', text: 'Тестовое письмо из настроек Aurum Site.' });
+          await transport.sendMail({
+            from: settings.smtpFrom,
+            to: session.user.email,
+            subject: 'Aurum — проверка почты',
+            text: 'Тестовое письмо из настроек Aurum Site.',
+          });
           await pool.query('UPDATE site_settings SET smtp_tested_at=now() WHERE id=1');
           invalidateSiteSettings();
           return json(res, 200, { sentTo: session.user.email });
         } catch (error) {
           console.error('SMTP test failed:', error.message);
           return json(res, 502, { error: 'SMTP test failed; check host, port and credentials' });
-        } finally { transport.close(); }
+        } finally {
+          transport.close();
+        }
       }
     }
     return json(res, 404, { error: 'Not found' });
   } catch (error) {
+    if (error instanceof SiteError || error instanceof LinkError)
+      return json(res, error.status, { error: error.message });
     console.error('Site request failed:', error.message);
-    if (!res.headersSent) json(res, error.message === 'Body too large' ? 413 : 503, { error: 'Service unavailable' });
+    if (!res.headersSent)
+      json(res, error.message === 'Body too large' ? 413 : 503, { error: 'Service unavailable' });
     else res.destroy();
   }
 });
 
 try {
   await initSiteData();
-  server.listen(config.port, '127.0.0.1', () => console.log(`Aurum Site API listening on 127.0.0.1:${config.port}`));
+  server.listen(config.port, '127.0.0.1', () =>
+    console.log(`Aurum Site API listening on 127.0.0.1:${config.port}`),
+  );
 } catch (error) {
   console.error('Aurum Site database unavailable:', error.message);
   await pool.end();

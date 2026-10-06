@@ -7,7 +7,7 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; }
-button, input, textarea { font: inherit; }
+button, input, textarea, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
 
@@ -631,6 +631,120 @@ code { color: var(--gold); font-family: inherit; font-weight: 600; }
   .crop-zoom input { height: 44px; }
   .crop-actions { margin-top: auto; }
   .crop-actions .button { min-height: 44px; font-size: 13px; }
+}
+
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.settings-stack { display: block; }
+.settings-stack .button-quiet, .social-page .button-quiet, .site-dialog .button-quiet { color: var(--text); border-color: var(--border); background: var(--panel-hover); }
+.settings-stack .button-quiet:hover, .social-page .button-quiet:hover, .site-dialog .button-quiet:hover { border-color: var(--violet); }
+.settings-stack > form, .site-dialog form, .guild-settings { display: grid; gap: 16px; }
+.settings-stack h2 { margin-top: 0; }
+.settings-stack h3 { margin: 14px 0 0; font-size: 14px; }
+.settings-stack label, .site-dialog label, .guild-settings label, .scope-select, .compact-search label { display: grid; gap: 7px; font-size: 12px; font-weight: 600; min-width: 0; }
+.settings-stack input:not([type="checkbox"]), .settings-stack select, .site-dialog input, .site-dialog textarea, .guild-settings textarea, .guild-settings select, .compact-search input, .feed-compose textarea, .message-compose textarea { width: 100%; min-width: 0; padding: 11px 13px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg); color: var(--text); font-size: 14px; }
+.feed-compose textarea, .message-compose textarea { resize: vertical; min-height: 88px; }
+.settings-stack .button, .site-dialog .button, .guild-settings > .button { justify-self: start; }
+.settings-stack p.auth-error { color: #f4adad; font-size: 13px; margin-top: 12px; }
+.theme-light .settings-stack p.auth-error { color: #a3343c; }
+.settings-stack .setting-status { margin: 0 0 18px; font-size: 13px; }
+.privacy-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+.privacy-form > .button { grid-column: 1 / -1; }
+.scope-select { max-width: 430px; margin-top: 16px; }
+.checkbox-row { display: flex !important; align-items: center; gap: 10px !important; min-height: 36px; }
+.checkbox-row input { width: 18px; height: 18px; accent-color: var(--violet-strong); flex: 0 0 auto; }
+.backup-codes { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; padding: 14px; background: var(--bg); border-radius: 10px; font-size: 14px; }
+.totp-secret { font-family: monospace; letter-spacing: .025em; }
+.short-hint { font-size: 12px; line-height: 1.55; color: var(--muted); }
+.compact-search { display: flex !important; align-items: end; gap: 10px; margin: 16px 0; }
+.compact-search label { flex: 1; }
+.compact-search .button { flex: 0 0 auto; min-height: 40px; }
+.social-rows { list-style: none; padding: 0; margin: 14px 0; }
+.social-rows > li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 0; border-bottom: 1px solid var(--border-soft); }
+.social-rows > li:last-child { border-bottom: 0; }
+.social-rows > li > div:first-child { min-width: 0; }
+.social-rows strong { font-size: 14px; overflow-wrap: anywhere; }
+.social-rows small { display: block; color: var(--muted); font-size: 12px; margin-top: 5px; }
+.social-rows .text-link { white-space: normal; overflow-wrap: anywhere; font-size: 14px; }
+.row-actions, .form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
+.site-dialog { width: min(610px,calc(100vw - 32px)); max-height: calc(100dvh - 48px); overflow: auto; padding: 24px; border: 1px solid var(--border); border-radius: 14px; color: var(--text); background: var(--panel); box-shadow: 0 20px 80px rgba(0,0,0,.35); }
+.site-dialog::backdrop { background: rgba(12,13,20,.74); }
+.site-dialog > header { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 20px; }
+.site-dialog > header h2 { margin: 0; font-size: 20px; }
+.site-dialog > p { color: var(--muted); line-height: 1.6; overflow-wrap: anywhere; }
+.site-dialog .settings-toast { position: static; width: 100%; max-width: none; margin-bottom: 14px; }
+.community-feed > .profile-section-heading { margin-bottom: 20px; }
+.community-feed > .profile-section-heading h2 { margin: 0; }
+.community-feed > .profile-section-heading .button { min-height: 40px; padding: 0 13px; border: 1px solid var(--border); border-radius: 10px; color: var(--text); background: var(--panel-hover); }
+.feed-compose { margin: 0 0 22px; }
+.feed-compose > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px; }
+.feed-compose > div > span { font-size: 11px; color: var(--muted); }
+.feed-item { padding: 20px 0; border-top: 1px solid var(--border-soft); }
+.feed-item > header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; }
+.feed-item > header .text-link { font-size: 14px; }
+.feed-item time { color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.feed-item > p, .feed-replied-text { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; font-size: 14px; max-width: 72ch; margin: 14px 0; }
+.feed-item > footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.feed-item-controls { display: flex; gap: 8px; }
+.friend-section { margin: 24px 0; }
+.social-page { max-width: 1200px; margin-inline: auto; }
+.social-page:has(.messages-layout) { display: flex; flex-direction: column; height: calc(100dvh - 154px); }
+.social-page > .minecraft-page-heading, .social-page > .game-tabs { flex-shrink: 0; }
+.messages-layout { display: grid; grid-template-columns: minmax(240px,32%) minmax(0,1fr); flex: 1; min-height: 0; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; background: var(--panel); }
+.conversation-list { padding: 16px; border-right: 1px solid var(--border-soft); min-width: 0; min-height: 0; overflow: auto; }
+.conversation-row { display: grid; gap: 7px; width: 100%; padding: 15px 12px; border: 0; border-radius: 10px; color: var(--text); background: none; text-align: left; }
+.conversation-row:hover { background: var(--panel-hover); }
+.conversation-row.active { background: var(--violet-bg); }
+.conversation-row strong { font-size: 14px; }
+.conversation-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
+.message-thread { display: flex; flex-direction: column; min-width: 0; height: 100%; min-height: 0; }
+.message-thread > header, .message-compose { flex-shrink: 0; }
+.message-thread > header { display: flex; align-items: center; gap: 10px; padding: 14px 20px; border-bottom: 1px solid var(--border-soft); }
+.message-thread > header .text-link { font-size: 15px; flex: 1; }
+.message-scroll { flex: 1; min-height: 0; overflow: auto; padding: 20px; }
+.message-bubble { width: fit-content; max-width: 86%; margin: 0 0 15px; padding: 12px 15px; border-radius: 12px; background: var(--panel-soft); }
+.message-bubble.own { margin-left: auto; background: var(--violet-bg); }
+.message-bubble p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; font-size: 14px; margin: 0 0 5px; }
+.message-bubble time { display: block; text-align: right; color: var(--muted); font-size: 10px; font-variant-numeric: tabular-nums; }
+.message-compose { display: flex; align-items: end; gap: 10px; padding: 16px; border-top: 1px solid var(--border-soft); }
+.message-compose label { flex: 1; min-width: 0; }
+.message-compose textarea { display: block; min-height: 64px; max-height: 180px; }
+.empty-thread { align-items: center; justify-content: center; color: var(--muted); }
+.thread-back { display: none; }
+.guild-hero .profile-cover { height: 190px; }
+.guild-portrait { width: 90px; height: 90px; border-radius: 18px; font-size: 32px; }
+.guild-description { padding: 0 26px 24px; margin: 0; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--muted); font-size: 14px; }
+.guild-page .profile-identity-copy p { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; }
+.guild-settings fieldset { margin: 0; padding: 14px 16px; border: 1px solid var(--border-soft); border-radius: 10px; }
+.guild-settings legend { color: var(--muted); font-size: 12px; }
+.guild-settings .profile-media-upload { position: relative; display: inline-flex; overflow: hidden; cursor: pointer; color: var(--text); border-color: var(--border); background: var(--panel-hover); }
+.guild-settings .profile-media-upload input { position: absolute; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; }
+.guild-bank { border-top: 1px solid var(--border-soft); padding-top: 18px; font-size: 14px; }
+.minecraft-guild-crest img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
+.minecraft-profile-hero + .minecraft-profile-columns { margin-top: 30px; }
+.moderation-row { padding: 18px 0; border-top: 1px solid var(--border-soft); }
+.moderation-row strong { font-size: 13px; }
+.moderation-row p, .moderation-row blockquote { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; }
+.moderation-row blockquote { color: var(--muted); font-size: 13px; margin: 14px 0; }
+@media (max-width: 760px) {
+  .privacy-form { grid-template-columns: 1fr; }
+  .settings-stack { width: 100%; }
+  .social-rows > li { flex-wrap: wrap; gap: 12px; }
+  .social-rows .row-actions { width: 100%; }
+  .social-rows .button, .compact-search .button, .site-dialog .button, .community-feed .button, .message-compose .button, .social-page > .minecraft-page-heading .button, .settings-stack .button, .guild-settings .button { min-height: 44px; }
+  .compact-search { gap: 8px; }
+  .social-page:has(.messages-layout) { height: calc(100dvh - 128px); }
+  .messages-layout { display: block; }
+  .messages-layout > .conversation-list { height: 100%; }
+  .conversation-list { border-right: 0; }
+  .messages-layout.has-selection .conversation-list, .messages-layout:not(.has-selection) .message-thread { display: none; }
+  .thread-back { display: grid; }
+  .message-thread > header, .message-scroll { padding: 14px; }
+  .message-compose { flex-wrap: wrap; padding: 12px; }
+  .message-compose .button { margin-left: auto; }
+  .site-dialog { padding: 20px; }
+  .guild-hero .profile-cover { height: 145px; }
+  .guild-portrait { width: 75px; height: 75px; }
+  .guild-description { padding: 0 17px 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

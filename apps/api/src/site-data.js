@@ -1,6 +1,9 @@
 import { createCipheriv, createDecipheriv, hkdfSync, randomBytes } from 'node:crypto';
 import { Pool } from 'pg';
 import { readConfig } from './config.js';
+import { initAccessData } from './site-access.js';
+import { initGuildCommunity } from './guild-community.js';
+import { initSocialData } from './social-data.js';
 
 const config = readConfig();
 const key = Buffer.from(hkdfSync('sha256', config.secret, 'aurum-site', 'smtp-password-v1', 32));
@@ -76,11 +79,23 @@ export async function initSiteData() {
     window_start timestamptz NOT NULL DEFAULT now(),
     attempts integer NOT NULL DEFAULT 1
   )`);
-  await pool.query(`INSERT INTO site_settings
+  await initAccessData(pool, config.ownerUserId);
+  await initGuildCommunity(pool);
+  await initSocialData(pool);
+  await pool.query(
+    `INSERT INTO site_settings
     (id, registration_enabled, email_enabled, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from)
     VALUES (1, $1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,
-  [config.registrationEnabled, config.emailEnabled, config.smtpHost, config.smtpPort || 587,
-    config.smtpUser, encryptSecret(config.smtpPassword), config.smtpFrom]);
+    [
+      config.registrationEnabled,
+      config.emailEnabled,
+      config.smtpHost,
+      config.smtpPort || 587,
+      config.smtpUser,
+      encryptSecret(config.smtpPassword),
+      config.smtpFrom,
+    ],
+  );
 }
 
 let cachedSettings;
@@ -105,7 +120,9 @@ export async function getSiteSettings() {
   return cachedSettings;
 }
 
-export function invalidateSiteSettings() { cachedUntil = 0; }
+export function invalidateSiteSettings() {
+  cachedUntil = 0;
+}
 
 export async function isSiteAdmin(userId) {
   if (!userId) return false;
@@ -114,14 +131,23 @@ export async function isSiteAdmin(userId) {
 }
 
 export function normalizeProfileInput(value) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)
-    || typeof value.tagline !== 'string' || typeof value.about !== 'string') {
+  if (
+    !value ||
+    typeof value !== 'object' ||
+    Array.isArray(value) ||
+    typeof value.tagline !== 'string' ||
+    typeof value.about !== 'string'
+  ) {
     throw new Error('Некорректные данные профиля');
   }
   const tagline = value.tagline.trim().replace(/\s+/g, ' ');
   const about = value.about.trim();
-  if (tagline.length > 120 || about.length > 600 || /[\p{Cc}\p{Cf}]/u.test(tagline)
-    || /[\p{Cf}\x00-\x09\x0B-\x1F\x7F]/u.test(about)) {
+  if (
+    tagline.length > 120 ||
+    about.length > 600 ||
+    /[\p{Cc}\p{Cf}]/u.test(tagline) ||
+    /[\p{Cf}\x00-\x09\x0B-\x1F\x7F]/u.test(about)
+  ) {
     throw new Error('Описание слишком длинное или содержит недопустимые символы');
   }
   return { tagline, about };

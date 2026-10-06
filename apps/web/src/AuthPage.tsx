@@ -4,7 +4,7 @@ import { authClient } from './auth-client';
 import { LegalLinks } from './LegalDocuments';
 import { legalDocumentFromPath, type LegalDocument } from './legal-content';
 
-type Mode = 'login' | 'register' | 'verify' | 'forgot' | 'reset';
+type Mode = 'login' | 'register' | 'verify' | 'forgot' | 'reset' | 'twoFactor';
 type SiteConfig = { registrationEnabled: boolean; emailEnabled: boolean; maintenanceEnabled: boolean };
 
 function modeFromPath(): Mode {
@@ -25,7 +25,17 @@ function errorMessage(error: { code?: string; status?: number } | null | undefin
   return 'Сервис авторизации сейчас недоступен или запрос не удался. Попробуй позже.';
 }
 
-export function AuthPage({ lightTheme, toggleTheme, onLoginSuccess, onOpenLegal }: { lightTheme: boolean; toggleTheme: () => void; onLoginSuccess: () => void; onOpenLegal: (document: LegalDocument) => void }) {
+export function AuthPage({
+  lightTheme,
+  toggleTheme,
+  onLoginSuccess,
+  onOpenLegal,
+}: {
+  lightTheme: boolean;
+  toggleTheme: () => void;
+  onLoginSuccess: () => void;
+  onOpenLegal: (document: LegalDocument) => void;
+}) {
   const [mode, setMode] = useState<Mode>(modeFromPath);
   const [email, setEmail] = useState('');
   const [nickname, setNickname] = useState('');
@@ -39,42 +49,65 @@ export function AuthPage({ lightTheme, toggleTheme, onLoginSuccess, onOpenLegal 
   const [siteConfig, setSiteConfig] = useState<SiteConfig | null>(null);
   const [configError, setConfigError] = useState(false);
   const [adminLogin, setAdminLogin] = useState(false);
+  const [code, setCode] = useState('');
+  const [backup, setBackup] = useState(false);
 
   useEffect(() => {
     let active = true;
     fetch('/api/site/config', { cache: 'no-store' })
-      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((response) => (response.ok ? response.json() : Promise.reject()))
       .then((value: SiteConfig) => {
-        if (typeof value.registrationEnabled !== 'boolean' || typeof value.emailEnabled !== 'boolean') throw new Error('Invalid site config');
+        if (typeof value.registrationEnabled !== 'boolean' || typeof value.emailEnabled !== 'boolean')
+          throw new Error('Invalid site config');
         if (active) setSiteConfig(value);
       })
-      .catch(() => { if (active) { setConfigError(true); setSiteConfig({ registrationEnabled: false, emailEnabled: false, maintenanceEnabled: false }); } });
-    return () => { active = false; };
+      .catch(() => {
+        if (active) {
+          setConfigError(true);
+          setSiteConfig({ registrationEnabled: false, emailEnabled: false, maintenanceEnabled: false });
+        }
+      });
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
-    const onPopState = () => { if (!legalDocumentFromPath()) setMode(modeFromPath()); };
+    const onPopState = () => {
+      if (!legalDocumentFromPath()) setMode(modeFromPath());
+    };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
 
   const navigate = (next: Mode) => {
-    const path = { login: '/login', register: '/register', verify: '/verify-email', forgot: '/forgot-password', reset: '/reset-password' }[next];
+    const path = {
+      login: '/login',
+      register: '/register',
+      verify: '/verify-email',
+      forgot: '/forgot-password',
+      reset: '/reset-password',
+      twoFactor: '/login',
+    }[next];
     window.history.pushState(null, '', path);
     setMode(next);
     setError('');
     setNotice('');
     setPassword('');
     setConfirmation('');
+    setCode('');
+    setBackup(false);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
     setNotice('');
-    if (mode !== 'reset' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (mode !== 'reset' && mode !== 'twoFactor' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       setError('Проверь email.');
       return;
     }
@@ -97,28 +130,63 @@ export function AuthPage({ lightTheme, toggleTheme, onLoginSuccess, onOpenLegal 
 
     setBusy(true);
     try {
-      if (mode === 'register') {
-        const { error: resultError } = await authClient.signUp.email({ name: nickname, username: nickname, email, password, callbackURL: '/login?verified=1' });
+      if (mode === 'twoFactor') {
+        const result = backup
+          ? await authClient.twoFactor.verifyBackupCode({ code, trustDevice: false })
+          : await authClient.twoFactor.verifyTotp({ code, trustDevice: false });
+        if (result.error)
+          setError(
+            result.error.status === 429
+              ? 'Слишком много попыток. Подожди немного.'
+              : 'Код неверный или истёк. Попробуй снова.',
+          );
+        else {
+          setCode('');
+          await authClient.getSession();
+          window.history.replaceState(null, '', '/');
+          onLoginSuccess();
+        }
+      } else if (mode === 'register') {
+        const { error: resultError } = await authClient.signUp.email({
+          name: nickname,
+          username: nickname,
+          email,
+          password,
+          callbackURL: '/login?verified=1',
+        });
         if (resultError) setError(errorMessage(resultError));
         else navigate('verify');
       } else if (mode === 'login') {
-        const { error: resultError } = await authClient.signIn.email({ email, password });
+        const { data, error: resultError } = await authClient.signIn.email({ email, password });
         if (resultError) setError(errorMessage(resultError));
-        else { window.history.replaceState(null, '', '/'); onLoginSuccess(); }
+        else if (data && 'twoFactorRedirect' in data && data.twoFactorRedirect) navigate('twoFactor');
+        else {
+          window.history.replaceState(null, '', '/');
+          onLoginSuccess();
+        }
       } else if (mode === 'verify') {
-        const { error: resultError } = await authClient.sendVerificationEmail({ email, callbackURL: '/login?verified=1' });
-        if (resultError && (!resultError.status || resultError.status === 429 || resultError.status >= 500)) setError(errorMessage(resultError));
+        const { error: resultError } = await authClient.sendVerificationEmail({
+          email,
+          callbackURL: '/login?verified=1',
+        });
+        if (resultError && (!resultError.status || resultError.status === 429 || resultError.status >= 500))
+          setError(errorMessage(resultError));
         else setNotice('Если адрес зарегистрирован, новое письмо отправлено. Проверь также папку «Спам».');
       } else if (mode === 'forgot') {
-        const { error: resultError } = await authClient.requestPasswordReset({ email, redirectTo: '/reset-password' });
-        if (resultError && (!resultError.status || resultError.status === 429 || resultError.status >= 500)) setError(errorMessage(resultError));
+        const { error: resultError } = await authClient.requestPasswordReset({
+          email,
+          redirectTo: '/reset-password',
+        });
+        if (resultError && (!resultError.status || resultError.status === 429 || resultError.status >= 500))
+          setError(errorMessage(resultError));
         else setNotice('Если такой email зарегистрирован, мы отправили ссылку для сброса пароля.');
       } else {
         const token = new URLSearchParams(window.location.search).get('token');
         if (!token) setError('Ссылка для сброса недействительна. Запроси новую.');
         else {
           const { error: resultError } = await authClient.resetPassword({ newPassword: password, token });
-          if (resultError) setError('Не удалось сменить пароль. Возможно, срок ссылки истёк — запроси новую.');
+          if (resultError)
+            setError('Не удалось сменить пароль. Возможно, срок ссылки истёк — запроси новую.');
           else {
             navigate('login');
             setNotice('Пароль обновлён. Теперь войди с новым паролем.');
@@ -133,50 +201,292 @@ export function AuthPage({ lightTheme, toggleTheme, onLoginSuccess, onOpenLegal 
   };
 
   const maintenance = Boolean(siteConfig?.maintenanceEnabled);
-  const title = maintenance && !adminLogin ? 'Сайт обновляется' : { login: 'С возвращением', register: 'Создать аккаунт', verify: 'Проверь почту', forgot: 'Восстановить доступ', reset: 'Новый пароль' }[mode];
+  const title =
+    maintenance && !adminLogin
+      ? 'Сайт обновляется'
+      : {
+          login: 'С возвращением',
+          register: 'Создать аккаунт',
+          verify: 'Проверь почту',
+          forgot: 'Восстановить доступ',
+          reset: 'Новый пароль',
+          twoFactor: 'Подтверди вход',
+        }[mode];
   const verified = mode === 'login' && new URLSearchParams(window.location.search).has('verified');
-  const unavailable = maintenance && mode !== 'login' ? 'Сайт временно закрыт на обновление.' : mode === 'register' && !siteConfig?.registrationEnabled
-    ? 'Регистрация пока закрыта.'
-    : (mode === 'verify' || mode === 'forgot') && !siteConfig?.emailEnabled
-      ? 'Почта пока не настроена.'
-      : '';
+  const unavailable =
+    maintenance && mode !== 'login' && mode !== 'twoFactor'
+      ? 'Сайт временно закрыт на обновление.'
+      : mode === 'register' && !siteConfig?.registrationEnabled
+        ? 'Регистрация пока закрыта.'
+        : (mode === 'verify' || mode === 'forgot') && !siteConfig?.emailEnabled
+          ? 'Почта пока не настроена.'
+          : '';
 
-  return <div className="auth-page">
-    <header className="auth-header">
-      <div className="auth-brand"><img src="/aurum-logo.png" alt="" /><span><strong>AURUM</strong><small>ИГРОВОЕ СООБЩЕСТВО</small></span></div>
-      <button type="button" className="auth-theme" onClick={toggleTheme} aria-pressed={lightTheme}>{lightTheme ? <Moon size={18} /> : <Sun size={18} />}{lightTheme ? 'Тёмная тема' : 'Светлая тема'}</button>
-    </header>
-    <main className="auth-main">
-      <section className="auth-intro" aria-label="О проекте Aurum">
-        <h1>Твоё место<br />в Aurum.</h1>
-        <span className="auth-game"><Gamepad2 size={17} /> Minecraft Community</span>
-        <p>Новости, гильдии и игровые профили в одном месте.</p>
-      </section>
+  return (
+    <div className="auth-page">
+      <header className="auth-header">
+        <div className="auth-brand">
+          <img src="/aurum-logo.png" alt="" />
+          <span>
+            <strong>AURUM</strong>
+            <small>ИГРОВОЕ СООБЩЕСТВО</small>
+          </span>
+        </div>
+        <button type="button" className="auth-theme" onClick={toggleTheme} aria-pressed={lightTheme}>
+          {lightTheme ? <Moon size={18} /> : <Sun size={18} />}
+          {lightTheme ? 'Тёмная тема' : 'Светлая тема'}
+        </button>
+      </header>
+      <main className="auth-main">
+        <section className="auth-intro" aria-label="О проекте Aurum">
+          <h1>
+            Твоё место
+            <br />в Aurum.
+          </h1>
+          <span className="auth-game">
+            <Gamepad2 size={17} /> Minecraft Community
+          </span>
+          <p>Новости, гильдии и игровые профили в одном месте.</p>
+        </section>
 
-      <section className="auth-panel" aria-labelledby="auth-title">
-        <h2 id="auth-title">{title}</h2>
-        {maintenance && !adminLogin && <div className="maintenance-message"><p>Мы готовим обновление. Попробуй зайти позже.</p><button type="button" className="button button-quiet" onClick={() => { navigate('login'); setAdminLogin(true); }}>Вход для администрации</button></div>}
-        {verified && <p className="auth-notice" role="status">После подтверждения email войди в аккаунт.</p>}
-        {notice && <p className="auth-notice" role="status">{notice}</p>}
-        {error && <p className="auth-error" role="alert" tabIndex={-1} ref={errorRef}>{error}</p>}
-        {configError && mode === 'login' && <p className="auth-error" role="alert">Сервис входа сейчас недоступен. Попробуй позже.</p>}
-        {unavailable && (!maintenance || adminLogin) && <p className="auth-unavailable" role="status">{configError ? 'Не удалось связаться с сервисом. Попробуй позже.' : siteConfig ? unavailable : 'Проверяем доступность сервиса…'}</p>}
+        <section className="auth-panel" aria-labelledby="auth-title">
+          <h2 id="auth-title">{title}</h2>
+          {maintenance && !adminLogin && (
+            <div className="maintenance-message">
+              <p>Мы готовим обновление. Попробуй зайти позже.</p>
+              <button
+                type="button"
+                className="button button-quiet"
+                onClick={() => {
+                  navigate('login');
+                  setAdminLogin(true);
+                }}
+              >
+                Вход для администрации
+              </button>
+            </div>
+          )}
+          {verified && (
+            <p className="auth-notice" role="status">
+              После подтверждения email войди в аккаунт.
+            </p>
+          )}
+          {notice && (
+            <p className="auth-notice" role="status">
+              {notice}
+            </p>
+          )}
+          {error && (
+            <p className="auth-error" role="alert" tabIndex={-1} ref={errorRef}>
+              {error}
+            </p>
+          )}
+          {configError && mode === 'login' && (
+            <p className="auth-error" role="alert">
+              Сервис входа сейчас недоступен. Попробуй позже.
+            </p>
+          )}
+          {unavailable && (!maintenance || adminLogin) && (
+            <p className="auth-unavailable" role="status">
+              {configError
+                ? 'Не удалось связаться с сервисом. Попробуй позже.'
+                : siteConfig
+                  ? unavailable
+                  : 'Проверяем доступность сервиса…'}
+            </p>
+          )}
 
-        {!unavailable && (!maintenance || adminLogin) && <form onSubmit={submit} noValidate>
-          {mode !== 'reset' && <label className="auth-field">Email<input type="email" name="email" value={email} onChange={(event) => { setEmail(event.target.value); setError(''); }} autoComplete="email" placeholder="you@example.com" maxLength={254} required disabled={busy} /></label>}
-          {mode === 'register' && <label className="auth-field">Ник на сайте<input type="text" name="nickname" value={nickname} onChange={(event) => { setNickname(event.target.value); setError(''); }} autoComplete="nickname" placeholder="Player123" maxLength={20} required disabled={busy} /></label>}
-          {(mode === 'login' || mode === 'register' || mode === 'reset') && <label className="auth-field">{mode === 'reset' ? 'Новый пароль' : 'Пароль'}<span className="auth-password"><input type={showPassword ? 'text' : 'password'} name="password" value={password} onChange={(event) => { setPassword(event.target.value); setError(''); }} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} maxLength={128} required disabled={busy} /><button type="button" onClick={() => setShowPassword(!showPassword)} aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></span></label>}
-          {(mode === 'register' || mode === 'reset') && <label className="auth-field">Подтверди пароль<input type={showPassword ? 'text' : 'password'} name="confirmation" value={confirmation} onChange={(event) => { setConfirmation(event.target.value); setError(''); }} autoComplete="new-password" required disabled={busy} /></label>}
-          {mode === 'login' && siteConfig?.emailEnabled && <button type="button" className="auth-inline-link auth-forgot" onClick={() => navigate('forgot')}>Забыл пароль?</button>}
-          <button type="submit" className="auth-submit" disabled={busy}>{busy ? 'Подождите…' : mode === 'login' ? 'Войти' : mode === 'register' ? 'Зарегистрироваться' : mode === 'verify' ? 'Отправить письмо ещё раз' : mode === 'forgot' ? 'Отправить ссылку' : 'Сменить пароль'}{!busy && <ArrowRight size={18} />}</button>
-          {mode === 'register' && <p className="auth-terms-notice">Регистрируясь, ты принимаешь <a href="/terms" onClick={(event) => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); onOpenLegal('terms'); } }}>условия использования</a>.</p>}
-        </form>}
+          {!unavailable && (!maintenance || adminLogin) && (
+            <form onSubmit={submit} noValidate>
+              {mode !== 'reset' && mode !== 'twoFactor' && (
+                <label className="auth-field">
+                  Email
+                  <input
+                    type="email"
+                    name="email"
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      setError('');
+                    }}
+                    autoComplete="email"
+                    placeholder="you@example.com"
+                    maxLength={254}
+                    required
+                    disabled={busy}
+                  />
+                </label>
+              )}
+              {mode === 'twoFactor' && (
+                <>
+                  <label className="auth-field">
+                    {backup ? 'Резервный код' : 'Код из приложения'}
+                    <input
+                      autoFocus
+                      type="text"
+                      inputMode={backup ? 'text' : 'numeric'}
+                      autoComplete="one-time-code"
+                      value={code}
+                      onChange={(event) => {
+                        setCode(backup ? event.target.value : event.target.value.replace(/\D/g, ''));
+                        setError('');
+                      }}
+                      maxLength={backup ? 32 : 6}
+                      required
+                      disabled={busy}
+                    />
+                  </label>
+                  <button
+                    className="auth-inline-link"
+                    type="button"
+                    onClick={() => {
+                      setBackup(!backup);
+                      setCode('');
+                      setError('');
+                    }}
+                  >
+                    {backup ? 'Использовать приложение' : 'Использовать резервный код'}
+                  </button>
+                </>
+              )}
+              {mode === 'register' && (
+                <label className="auth-field">
+                  Ник на сайте
+                  <input
+                    type="text"
+                    name="nickname"
+                    value={nickname}
+                    onChange={(event) => {
+                      setNickname(event.target.value);
+                      setError('');
+                    }}
+                    autoComplete="nickname"
+                    placeholder="Player123"
+                    maxLength={20}
+                    required
+                    disabled={busy}
+                  />
+                </label>
+              )}
+              {(mode === 'login' || mode === 'register' || mode === 'reset') && (
+                <label className="auth-field">
+                  {mode === 'reset' ? 'Новый пароль' : 'Пароль'}
+                  <span className="auth-password">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      name="password"
+                      value={password}
+                      onChange={(event) => {
+                        setPassword(event.target.value);
+                        setError('');
+                      }}
+                      autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                      maxLength={128}
+                      required
+                      disabled={busy}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </span>
+                </label>
+              )}
+              {(mode === 'register' || mode === 'reset') && (
+                <label className="auth-field">
+                  Подтверди пароль
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    name="confirmation"
+                    value={confirmation}
+                    onChange={(event) => {
+                      setConfirmation(event.target.value);
+                      setError('');
+                    }}
+                    autoComplete="new-password"
+                    required
+                    disabled={busy}
+                  />
+                </label>
+              )}
+              {mode === 'login' && siteConfig?.emailEnabled && (
+                <button
+                  type="button"
+                  className="auth-inline-link auth-forgot"
+                  onClick={() => navigate('forgot')}
+                >
+                  Забыл пароль?
+                </button>
+              )}
+              <button type="submit" className="auth-submit" disabled={busy}>
+                {busy
+                  ? 'Подождите…'
+                  : mode === 'login'
+                    ? 'Войти'
+                    : mode === 'twoFactor'
+                      ? 'Подтвердить'
+                      : mode === 'register'
+                        ? 'Зарегистрироваться'
+                        : mode === 'verify'
+                          ? 'Отправить письмо ещё раз'
+                          : mode === 'forgot'
+                            ? 'Отправить ссылку'
+                            : 'Сменить пароль'}
+                {!busy && <ArrowRight size={18} />}
+              </button>
+              {mode === 'register' && (
+                <p className="auth-terms-notice">
+                  Регистрируясь, ты принимаешь{' '}
+                  <a
+                    href="/terms"
+                    onClick={(event) => {
+                      if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+                        event.preventDefault();
+                        onOpenLegal('terms');
+                      }
+                    }}
+                  >
+                    условия использования
+                  </a>
+                  .
+                </p>
+              )}
+            </form>
+          )}
 
-        {(!maintenance || adminLogin) && <div className="auth-switch">
-          {maintenance ? <button type="button" onClick={() => setAdminLogin(false)}>К объявлению</button> : mode === 'login' ? <>Нет аккаунта? <button type="button" onClick={() => navigate('register')}>Зарегистрируйтесь</button></> : mode === 'register' ? <>Уже есть аккаунт? <button type="button" onClick={() => navigate('login')}>Войти</button></> : <button type="button" onClick={() => navigate('login')}>Вернуться ко входу</button>}
-        </div>}
-        <LegalLinks onOpen={onOpenLegal} />
-      </section>
-    </main>
-  </div>;
+          {(!maintenance || adminLogin) && (
+            <div className="auth-switch">
+              {maintenance ? (
+                <button type="button" onClick={() => setAdminLogin(false)}>
+                  К объявлению
+                </button>
+              ) : mode === 'login' ? (
+                <>
+                  Нет аккаунта?{' '}
+                  <button type="button" onClick={() => navigate('register')}>
+                    Зарегистрируйтесь
+                  </button>
+                </>
+              ) : mode === 'register' ? (
+                <>
+                  Уже есть аккаунт?{' '}
+                  <button type="button" onClick={() => navigate('login')}>
+                    Войти
+                  </button>
+                </>
+              ) : (
+                <button type="button" onClick={() => navigate('login')}>
+                  Вернуться ко входу
+                </button>
+              )}
+            </div>
+          )}
+          <LegalLinks onOpen={onOpenLegal} />
+        </section>
+      </main>
+    </div>
+  );
 }

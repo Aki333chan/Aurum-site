@@ -16,7 +16,7 @@ Players of Aurum game servers, initially Minecraft Paper; guild leaders and offi
 
 ## Product Purpose
 
-A public-facing community site at `aurumgg.ovh`. Players create a site account, verify email, optionally enable two-factor authentication, link game identities, and see their server-specific profiles. The site also hosts server news, a guild directory, guild feeds, player profile comments, and eventually direct messages. Staff have separate moderation and administration tools.
+A public-facing community site at `aurumgg.ovh`. Players create a site account, verify email, optionally enable two-factor authentication, link game identities, and see their server-specific profiles. The site also hosts server news, a guild directory, guild feeds, player profile comments, friends and direct messages. Staff have separate moderation and administration tools.
 
 ## Positioning
 
@@ -29,7 +29,8 @@ After signing in, players land on a global home with game cards and a shared com
 ## Capabilities and Constraints
 
 - Separate Git repository `aurum-site`; the existing Aurum Panel and Companion provide only narrowly scoped private bridges to game data. The staff panel's user accounts, cookies, and administrator token are not shared with players.
-- Email verification is required to complete public registration and before the first login. The one owner account may be bootstrapped as verified while SMTP is unavailable, with public registration disabled. Minecraft linking is separate and available only after signing in. Password recovery depends on SMTP; optional player 2FA and required staff 2FA are later stages.
+- Email verification is required to complete public registration and before the first login. The one owner account may be bootstrapped as verified while SMTP is unavailable, with public registration disabled. Minecraft linking is separate and available only after signing in. Password recovery depends on SMTP; TOTP and one-use recovery codes are optional for all accounts, recommended for staff, not forcibly enabled.
+- Only the pinned owner may grant/revoke site administrators, with current-password confirmation and an audit record. The owner cannot be demoted from the UI. Roles appear in their own owner-only settings subsection, not above all personal/site settings. No site role automatically grants game or panel privileges. Moderator/custom roles remain a future decision.
 - Each player chooses a unique site nickname during registration. It is independent of the Minecraft nickname, which is shown separately after linking; email is not a public nickname.
 - Minecraft first; other games may be added later with separate identity-linking adapters.
 - Guild catalog lists every guild. Guild leaders may restrict member roster and extended information to members. Guild feeds may be readable publicly or by members; posting can be limited to selected in-game ranks.
@@ -45,7 +46,7 @@ Use the Aurum name and recognizable gold emblem. The existing staff panel uses a
 
 ## Evidence on Hand
 
-The existing panel in the `images` repository contains the Aurum emblem and Nocturne tokens. Companion already has a five-minute one-use web token mechanism, but a player-site link token must have its own purpose and stricter authentication boundary. AurumGuilds supports a guild list and three ranks (leader, officer, member). Aurum Site is deployed at `aurumgg.ovh` with its own PostgreSQL, verified owner, admin-only settings and replaceable avatars and profile covers. SMTP is not configured and public registration remains closed. The global site profile has editable real text and authenticated visitor pages; post-login game screens still contain demonstration data or honest empty states.
+The existing panel in the `images` repository contains the Aurum emblem and Nocturne tokens. AurumLink is already deployed with a distinct five-minute single-use proof of authenticated game identity, and the owner has verified a real link. SMTP, email confirmation and registration have been verified by the user. AurumGuilds supports a guild list and three ranks (leader, officer, member); the 0.6.0 API adds narrow website actions checked against current membership and rank. Site community pages use real server responses and site PostgreSQL content; synthetic screenshot fixtures are QA only. Avatar/cover bytes are replaced in place rather than archived.
 
 ## Product Principles
 
@@ -57,4 +58,4 @@ The existing panel in the `images` repository contains the Aurum emblem and Noct
 ## Open Decisions
 
 - Confirm whether the website starts only in Russian or launches with Russian, Polish, and English.
-- Define first release scope for global, game and guild posts; moderation and privacy must be ready before public posting opens.
+- Agree future staff roles and account bans, data export/deletion flows, and bounded retention policies. Never read private messages through ordinary site administration.

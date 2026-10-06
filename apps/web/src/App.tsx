@@ -5,6 +5,11 @@ import { SiteAdminSettings } from './SiteAdminSettings';
 import { ProfilePage } from './ProfilePage';
 import { MinecraftLinkPage, type MinecraftState } from './MinecraftLinkPage';
 import { MinecraftCommunityPage } from './MinecraftCommunityPage';
+import { GuildPage } from './GuildPage';
+import { SocialPage } from './SocialPage';
+import { Feed } from './Feed';
+import { OwnerRoles, PrivacySettings, TwoFactorSettings, ModerationQueue } from './SiteSecuritySettings';
+import { MinecraftVisitorPage } from './MinecraftVisitorPage';
 import { LegalDialog, LegalLinks } from './LegalDocuments';
 import { legalDocumentFromPath, legalPaths, type LegalDocument } from './legal-content';
 import {
@@ -18,52 +23,113 @@ import {
   Menu,
   MessageCircle,
   Moon,
-  Newspaper,
   Settings2,
   Sun,
   X,
 } from 'lucide-react';
 
-type Page = 'home' | 'servers' | 'minecraft' | 'guilds' | 'link' | 'profile' | 'publicProfile' | 'settings';
+type Page =
+  | 'home'
+  | 'servers'
+  | 'minecraft'
+  | 'guilds'
+  | 'guild'
+  | 'link'
+  | 'profile'
+  | 'publicProfile'
+  | 'gameProfile'
+  | 'messages'
+  | 'settings';
+type Route = { page: Page; username: string; serverId: string; guildId: number; messageUser: string };
 
-function pageFromPath(): { page: Page; username: string } {
+function pageFromPath(): Route {
+  const base = { username: '', serverId: '', guildId: 0, messageUser: '' };
+  const game = window.location.pathname.match(/^\/u\/([A-Za-z0-9_]{3,20})\/minecraft\/([0-9a-f-]{36})\/?$/i);
+  if (game) return { ...base, page: 'gameProfile', username: game[1], serverId: game[2] };
+  const guild = window.location.pathname.match(/^\/minecraft\/guilds\/([1-9][0-9]{0,15})\/?$/);
+  if (guild)
+    return {
+      ...base,
+      page: 'guild',
+      guildId: Number(guild[1]),
+      serverId: new URLSearchParams(window.location.search).get('server') || '',
+    };
   const publicProfile = window.location.pathname.match(/^\/u\/([A-Za-z0-9_]{3,20})\/?$/);
-  if (publicProfile) return { page: 'publicProfile', username: publicProfile[1] };
-  const routes: Record<string, Page> = { '/profile': 'profile', '/settings': 'settings', '/servers': 'servers',
-    '/minecraft': 'minecraft', '/minecraft/guilds': 'guilds', '/minecraft/link': 'link' };
-  if (routes[window.location.pathname]) return { page: routes[window.location.pathname], username: '' };
-  return { page: 'home', username: '' };
+  if (publicProfile) return { ...base, page: 'publicProfile', username: publicProfile[1] };
+  const routes: Record<string, Page> = {
+    '/profile': 'profile',
+    '/settings': 'settings',
+    '/servers': 'servers',
+    '/minecraft': 'minecraft',
+    '/minecraft/guilds': 'guilds',
+    '/minecraft/link': 'link',
+    '/messages': 'messages',
+  };
+  if (routes[window.location.pathname])
+    return {
+      ...base,
+      page: routes[window.location.pathname],
+      messageUser: new URLSearchParams(window.location.search).get('user') || '',
+    };
+  return { ...base, page: 'home' };
 }
 
 const pagePaths: Record<Exclude<Page, 'publicProfile'>, string> = {
-  home: '/', servers: '/servers', minecraft: '/minecraft', guilds: '/minecraft/guilds',
-  link: '/minecraft/link', profile: '/profile', settings: '/settings',
+  home: '/',
+  servers: '/servers',
+  minecraft: '/minecraft',
+  guilds: '/minecraft/guilds',
+  link: '/minecraft/link',
+  profile: '/profile',
+  settings: '/settings',
+  guild: '/minecraft/guilds',
+  gameProfile: '/minecraft',
+  messages: '/messages',
 };
 
 const navigation = [
   { page: 'home', label: 'Главная', icon: Home },
-  { page: null, label: 'Сообщения', icon: MessageCircle },
+  { page: 'messages', label: 'Сообщения', icon: MessageCircle },
   { page: 'servers', label: 'Серверы', icon: Gamepad2 },
 ] as const;
 
 function App() {
   const { data: session, isPending } = authClient.useSession();
+  const [sessionChecked, setSessionChecked] = useState(false);
   const [page, setPage] = useState<Page>(() => pageFromPath().page);
   const [viewedUsername, setViewedUsername] = useState(() => pageFromPath().username);
+  const [guildRoute, setGuildRoute] = useState(() => ({
+    serverId: pageFromPath().serverId,
+    guildId: pageFromPath().guildId,
+  }));
+  const [messageUser, setMessageUser] = useState(() => pageFromPath().messageUser);
   const [mobileNav, setMobileNav] = useState(false);
   const [lightTheme, setLightTheme] = useState(() => localStorage.getItem('aurum-site-theme') === 'light');
   const [logoutError, setLogoutError] = useState('');
-  const [siteMe, setSiteMe] = useState<{ admin: boolean; avatarUpdatedAt: string | null; avatarCooldownHours: number } | null>(null);
+  const [siteMe, setSiteMe] = useState<{
+    admin: boolean;
+    owner: boolean;
+    avatarUpdatedAt: string | null;
+    avatarCooldownHours: number;
+  } | null>(null);
   const [maintenance, setMaintenance] = useState(false);
   const [loginTransition, setLoginTransition] = useState(false);
   const [legalDocument, setLegalDocument] = useState<LegalDocument | null>(legalDocumentFromPath);
   const [minecraft, setMinecraft] = useState<MinecraftState | null>(null);
-  const linkEntry = useRef(window.location.pathname === '/minecraft/link' ? window.location.pathname + window.location.search + window.location.hash : null);
-  const inMinecraft = page === 'minecraft' || page === 'guilds' || page === 'link';
+  const linkEntry = useRef(
+    window.location.pathname === '/minecraft/link'
+      ? window.location.pathname + window.location.search + window.location.hash
+      : null,
+  );
+  const inMinecraft = ['minecraft', 'guilds', 'guild', 'gameProfile', 'link'].includes(page);
   const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview');
-  const transitionPreview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('transition');
-  const displayName = session?.user.displayUsername || session?.user.username || session?.user.name || 'AurumPlayer';
-  const transition = (loginTransition || transitionPreview) && <LoginTransition key="login-transition" onDone={() => setLoginTransition(false)} />;
+  const transitionPreview =
+    import.meta.env.DEV && new URLSearchParams(window.location.search).has('transition');
+  const displayName =
+    session?.user.displayUsername || session?.user.username || session?.user.name || 'AurumPlayer';
+  const transition = (loginTransition || transitionPreview) && (
+    <LoginTransition key="login-transition" onDone={() => setLoginTransition(false)} />
+  );
 
   const loadMinecraft = useCallback(async (signal?: AbortSignal): Promise<MinecraftState> => {
     const response = await fetch('/api/site/minecraft', { cache: 'no-store', signal });
@@ -74,11 +140,21 @@ function App() {
   }, []);
 
   useEffect(() => {
+    if (!isPending) setSessionChecked(true);
+  }, [isPending]);
+
+  useEffect(() => {
     setMinecraft(null);
     if (!session?.user.id || preview) return;
     const controller = new AbortController();
     void loadMinecraft(controller.signal).catch(() => {
-      if (!controller.signal.aborted) setMinecraft({ available: false, servers: [], profiles: [], error: 'Не удалось загрузить Minecraft. Попробуй обновить страницу.' });
+      if (!controller.signal.aborted)
+        setMinecraft({
+          available: false,
+          servers: [],
+          profiles: [],
+          error: 'Не удалось загрузить Minecraft. Попробуй обновить страницу.',
+        });
     });
     return () => controller.abort();
   }, [session?.user.id, preview, loadMinecraft]);
@@ -88,11 +164,21 @@ function App() {
     let active = true;
     setSiteMe(null);
     setMaintenance(false);
-    fetch('/api/site/me', { cache: 'no-store' }).then(async (response) => {
-      if (response.status === 503) { if (active) setMaintenance(true); return; }
-      if (response.ok && active) { setSiteMe(await response.json()); setMaintenance(false); }
-    }).catch(() => {});
-    return () => { active = false; };
+    fetch('/api/site/me', { cache: 'no-store' })
+      .then(async (response) => {
+        if (response.status === 503) {
+          if (active) setMaintenance(true);
+          return;
+        }
+        if (response.ok && active) {
+          setSiteMe(await response.json());
+          setMaintenance(false);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [session?.user.id, preview]);
 
   useEffect(() => {
@@ -103,16 +189,39 @@ function App() {
       const route = pageFromPath();
       setPage(route.page);
       setViewedUsername(route.username);
+      setGuildRoute({ serverId: route.serverId, guildId: route.guildId });
+      setMessageUser(route.messageUser);
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
 
-  const go = (next: Page) => {
+  const go = (next: Page, pathOverride?: string) => {
     setPage(next);
     setMobileNav(false);
-    window.history.pushState(null, '', `${next === 'publicProfile' ? `/u/${viewedUsername}` : pagePaths[next]}${preview ? '?preview' : ''}`);
+    window.history.pushState(
+      null,
+      '',
+      `${pathOverride || (next === 'publicProfile' ? `/u/${viewedUsername}` : pagePaths[next])}${preview ? '?preview' : ''}`,
+    );
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+  const openUser = (username: string) => {
+    setViewedUsername(username);
+    go('publicProfile', `/u/${encodeURIComponent(username)}`);
+  };
+  const openGuild = (serverId: string, guildId: number) => {
+    setGuildRoute({ serverId, guildId });
+    go('guild', `/minecraft/guilds/${guildId}?server=${encodeURIComponent(serverId)}`);
+  };
+  const openGame = (username: string, serverId: string) => {
+    setViewedUsername(username);
+    setGuildRoute({ serverId, guildId: 0 });
+    go('gameProfile', `/u/${encodeURIComponent(username)}/minecraft/${encodeURIComponent(serverId)}`);
+  };
+  const openMessage = (username: string) => {
+    setMessageUser(username);
+    go('messages', `/messages?user=${encodeURIComponent(username)}`);
   };
 
   const toggleTheme = () => {
@@ -135,7 +244,9 @@ function App() {
       setLegalDocument(null);
     }
   };
-  const legalOverlay = legalDocument && <LegalDialog document={legalDocument} onOpen={openLegal} onClose={closeLegal} />;
+  const legalOverlay = legalDocument && (
+    <LegalDialog document={legalDocument} onOpen={openLegal} onClose={closeLegal} />
+  );
 
   const signOut = async () => {
     const { error } = await authClient.signOut();
@@ -143,52 +254,220 @@ function App() {
     else window.history.replaceState(null, '', '/login');
   };
 
-  if (isPending && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}>{legalOverlay}<main className="auth-loading" role="status">Проверяем вход в Aurum…</main>{transition}</div>;
-  if ((!session || maintenance) && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}>{legalOverlay}<AuthPage lightTheme={lightTheme} toggleTheme={toggleTheme} onLoginSuccess={() => { if (linkEntry.current) window.history.replaceState(null, '', linkEntry.current); setLoginTransition(true); }} onOpenLegal={openLegal} />{transition}</div>;
+  if (isPending && !sessionChecked && !preview)
+    return (
+      <div className={`app ${lightTheme ? 'theme-light' : ''}`}>
+        {legalOverlay}
+        <main className="auth-loading" role="status">
+          Проверяем вход в Aurum…
+        </main>
+        {transition}
+      </div>
+    );
+  if ((!session || maintenance) && !preview)
+    return (
+      <div className={`app ${lightTheme ? 'theme-light' : ''}`}>
+        {legalOverlay}
+        <AuthPage
+          lightTheme={lightTheme}
+          toggleTheme={toggleTheme}
+          onLoginSuccess={() => {
+            if (linkEntry.current) window.history.replaceState(null, '', linkEntry.current);
+            setLoginTransition(true);
+          }}
+          onOpenLegal={openLegal}
+        />
+        {transition}
+      </div>
+    );
 
   return (
     <div className={`app ${lightTheme ? 'theme-light' : ''}`}>
       {legalOverlay}
       <header className="topbar">
-        <button className="mobile-menu icon-button" aria-label="Открыть меню" onClick={() => setMobileNav(true)}>
+        <button
+          className="mobile-menu icon-button"
+          aria-label="Открыть меню"
+          onClick={() => setMobileNav(true)}
+        >
           <Menu size={20} />
         </button>
         <button className="brand" onClick={() => go('home')} aria-label="Aurum — на главную">
-          <span className="brand-mark"><img src="/aurum-logo.png" alt="" /></span>
-          <span className="brand-text"><strong>AURUM</strong><small>ИГРОВОЕ СООБЩЕСТВО</small></span>
+          <span className="brand-mark">
+            <img src="/aurum-logo.png" alt="" />
+          </span>
+          <span className="brand-text">
+            <strong>AURUM</strong>
+            <small>ИГРОВОЕ СООБЩЕСТВО</small>
+          </span>
         </button>
-        <div className="topbar-middle"><span className="topbar-label">{page === 'minecraft' ? 'Серверы' : inMinecraft ? 'Minecraft' : 'Сообщество'}</span><span className="topbar-separator">/</span><span>{page === 'link' ? 'Привязка профиля' : page === 'guilds' ? 'Гильдии' : page === 'minecraft' ? 'Minecraft Community' : page === 'servers' ? 'Серверы' : page === 'profile' ? 'Моя страница' : page === 'publicProfile' ? viewedUsername : page === 'settings' ? 'Настройки' : 'Главная'}</span></div>
-        {preview && <span className="preview-tag"><span />Эскиз интерфейса</span>}
+        <div className="topbar-middle">
+          <span className="topbar-label">
+            {page === 'minecraft' ? 'Серверы' : inMinecraft ? 'Minecraft' : 'Сообщество'}
+          </span>
+          <span className="topbar-separator">/</span>
+          <span>
+            {page === 'link'
+              ? 'Привязка профиля'
+              : page === 'guilds'
+                ? 'Гильдии'
+                : page === 'guild'
+                  ? 'Гильдия'
+                  : page === 'minecraft'
+                    ? 'Minecraft Community'
+                    : page === 'servers'
+                      ? 'Серверы'
+                      : page === 'profile'
+                        ? 'Моя страница'
+                        : page === 'publicProfile' || page === 'gameProfile'
+                          ? viewedUsername
+                          : page === 'messages'
+                            ? 'Сообщения'
+                            : page === 'settings'
+                              ? 'Настройки'
+                              : 'Главная'}
+          </span>
+        </div>
+        {preview && (
+          <span className="preview-tag">
+            <span />
+            Эскиз интерфейса
+          </span>
+        )}
       </header>
 
       <div className="shell">
         <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
-          <div className="mobile-sidebar-head"><span>Меню</span><button className="icon-button" aria-label="Закрыть меню" onClick={() => setMobileNav(false)}><X size={20} /></button></div>
-          <button className={`sidebar-account ${page === 'profile' ? 'active' : ''}`} onClick={() => go('profile')} aria-label={`Открыть мою страницу — ${displayName}`}>
-            <Avatar name={displayName} version={siteMe?.avatarUpdatedAt} /><span className="account-copy"><strong>{displayName}</strong><small>Моя страница</small></span>
+          <div className="mobile-sidebar-head">
+            <span>Меню</span>
+            <button className="icon-button" aria-label="Закрыть меню" onClick={() => setMobileNav(false)}>
+              <X size={20} />
+            </button>
+          </div>
+          <button
+            className={`sidebar-account ${page === 'profile' ? 'active' : ''}`}
+            onClick={() => go('profile')}
+            aria-label={`Открыть мою страницу — ${displayName}`}
+          >
+            <Avatar name={displayName} version={siteMe?.avatarUpdatedAt} />
+            <span className="account-copy">
+              <strong>{displayName}</strong>
+              <small>Моя страница</small>
+            </span>
           </button>
           <nav aria-label="Основная навигация">
             {navigation.map(({ page: target, label, icon: Icon }) => (
-              <button key={label} className={`nav-item ${target && (page === target || (target === 'servers' && inMinecraft)) ? 'active' : ''}`} disabled={!target} title={!target ? 'Раздел появится позже' : undefined} onClick={() => target && go(target)}>
-                <Icon size={19} strokeWidth={1.8} /><span>{label}</span>{!target && <em>Скоро</em>}{target && (page === target || (target === 'servers' && inMinecraft)) && <span className="active-notch" />}
+              <button
+                key={label}
+                className={`nav-item ${target && (page === target || (target === 'servers' && inMinecraft)) ? 'active' : ''}`}
+                disabled={!target}
+                title={!target ? 'Раздел появится позже' : undefined}
+                onClick={() => target && go(target)}
+              >
+                <Icon size={19} strokeWidth={1.8} />
+                <span>{label}</span>
+                {(page === target || (target === 'servers' && inMinecraft)) && (
+                  <span className="active-notch" />
+                )}
               </button>
             ))}
-            <button className="nav-item" disabled title="Раздел появится позже"><BookOpen size={19} strokeWidth={1.8} /><span>Справка</span><em>Скоро</em></button>
+            <button className="nav-item" disabled title="Раздел появится позже">
+              <BookOpen size={19} strokeWidth={1.8} />
+              <span>Справка</span>
+              <em>Скоро</em>
+            </button>
           </nav>
           <div className="sidebar-bottom">
-            <button className={`nav-item ${page === 'settings' ? 'active' : ''}`} onClick={() => go('settings')}><Settings2 size={19} strokeWidth={1.8} /><span>Настройки</span></button>
-            <button className="nav-item theme-button" aria-label="Светлая тема" aria-pressed={lightTheme} onClick={toggleTheme}>{lightTheme ? <Moon size={19} strokeWidth={1.8} /> : <Sun size={19} strokeWidth={1.8} />}<span>Светлая тема</span><span className={`theme-switch ${lightTheme ? 'on' : ''}`} aria-hidden="true" /></button>
-            <button className="nav-item logout-button" onClick={signOut} disabled={preview}><LogOut size={19} strokeWidth={1.8} /><span>Выйти</span></button>
-            {logoutError && <p className="sidebar-error" role="alert">{logoutError}</p>}
+            <button
+              className={`nav-item ${page === 'settings' ? 'active' : ''}`}
+              onClick={() => go('settings')}
+            >
+              <Settings2 size={19} strokeWidth={1.8} />
+              <span>Настройки</span>
+            </button>
+            <button
+              className="nav-item theme-button"
+              aria-label="Светлая тема"
+              aria-pressed={lightTheme}
+              onClick={toggleTheme}
+            >
+              {lightTheme ? <Moon size={19} strokeWidth={1.8} /> : <Sun size={19} strokeWidth={1.8} />}
+              <span>Светлая тема</span>
+              <span className={`theme-switch ${lightTheme ? 'on' : ''}`} aria-hidden="true" />
+            </button>
+            <button className="nav-item logout-button" onClick={signOut} disabled={preview}>
+              <LogOut size={19} strokeWidth={1.8} />
+              <span>Выйти</span>
+            </button>
+            {logoutError && (
+              <p className="sidebar-error" role="alert">
+                {logoutError}
+              </p>
+            )}
             <LegalLinks onOpen={openLegal} compact />
           </div>
         </aside>
 
         <main className="content">
-          {page === 'link' ? <MinecraftLinkPage state={minecraft} reload={loadMinecraft} onBack={() => go('minecraft')} /> : page === 'profile' || page === 'publicProfile' ? <ProfilePage key={page === 'profile' ? 'own' : `public:${viewedUsername.toLowerCase()}`} username={page === 'profile' ? session?.user.username || displayName : viewedUsername} preview={preview} imageCooldownHours={siteMe?.avatarCooldownHours || 24} onAvatarUpdate={(avatarUpdatedAt) => setSiteMe((current) => current && { ...current, avatarUpdatedAt })} onBack={() => go('home')} onLink={() => go('link')} /> : page === 'settings' ? <SettingsPage siteMe={siteMe} /> : page === 'guilds' || page === 'minecraft' ? <MinecraftCommunityPage key={page} minecraft={minecraft} guilds={page === 'guilds'} avatarVersion={siteMe?.avatarUpdatedAt} onServers={() => go('servers')} onLink={() => go('link')} onGuilds={() => go('guilds')} onOverview={() => go('minecraft')} /> : <HomePage page={page} go={go} minecraft={minecraft} />}
+          {page === 'link' ? (
+            <MinecraftLinkPage state={minecraft} reload={loadMinecraft} onBack={() => go('minecraft')} />
+          ) : page === 'profile' || page === 'publicProfile' ? (
+            <ProfilePage
+              key={page === 'profile' ? 'own' : `public:${viewedUsername.toLowerCase()}`}
+              username={page === 'profile' ? session?.user.username || displayName : viewedUsername}
+              preview={preview}
+              imageCooldownHours={siteMe?.avatarCooldownHours || 24}
+              onAvatarUpdate={(avatarUpdatedAt) =>
+                setSiteMe((current) => current && { ...current, avatarUpdatedAt })
+              }
+              onBack={() => go('home')}
+              onLink={() => go('link')}
+              onUser={openUser}
+              onMessage={openMessage}
+              onGame={openGame}
+            />
+          ) : page === 'settings' ? (
+            <SettingsPage siteMe={siteMe} minecraft={minecraft} />
+          ) : page === 'messages' ? (
+            <SocialPage initialUser={messageUser} onUser={openUser} />
+          ) : page === 'guild' ? (
+            <GuildPage
+              key={`${guildRoute.serverId}:${guildRoute.guildId}`}
+              {...guildRoute}
+              cooldownHours={siteMe?.avatarCooldownHours || 24}
+              onBack={() => go('guilds')}
+              onUser={openUser}
+            />
+          ) : page === 'gameProfile' ? (
+            <MinecraftVisitorPage
+              key={`${viewedUsername}:${guildRoute.serverId}`}
+              username={viewedUsername}
+              serverId={guildRoute.serverId}
+              onUser={openUser}
+              onGuild={openGuild}
+            />
+          ) : page === 'guilds' || page === 'minecraft' ? (
+            <MinecraftCommunityPage
+              key={page}
+              minecraft={minecraft}
+              guilds={page === 'guilds'}
+              avatarVersion={siteMe?.avatarUpdatedAt}
+              onServers={() => go('servers')}
+              onLink={() => go('link')}
+              onGuilds={() => go('guilds')}
+              onOverview={() => go('minecraft')}
+              onGuild={openGuild}
+              onUser={openUser}
+              username={session?.user.username || displayName}
+            />
+          ) : (
+            <HomePage page={page} go={go} minecraft={minecraft} onUser={openUser} />
+          )}
         </main>
       </div>
-      {mobileNav && <button className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />}
+      {mobileNav && (
+        <button className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />
+      )}
       {transition}
     </div>
   );
@@ -199,49 +478,132 @@ function LoginTransition({ onDone }: { onDone: () => void }) {
     const timer = window.setTimeout(onDone, 2400);
     return () => window.clearTimeout(timer);
   }, [onDone]);
-  return <div className="login-transition" role="status" aria-label="Вход выполнен, открываем Aurum" onAnimationEnd={(event) => { if (event.target === event.currentTarget) onDone(); }}>
-    <div className="login-transition-content" aria-hidden="true">
-      <span className="login-transition-mark"><img src="/aurum-logo.png" alt="" /></span>
-      <strong>AURUM</strong>
-      <small>ИГРОВОЕ СООБЩЕСТВО</small>
+  return (
+    <div
+      className="login-transition"
+      role="status"
+      aria-label="Вход выполнен, открываем Aurum"
+      onAnimationEnd={(event) => {
+        if (event.target === event.currentTarget) onDone();
+      }}
+    >
+      <div className="login-transition-content" aria-hidden="true">
+        <span className="login-transition-mark">
+          <img src="/aurum-logo.png" alt="" />
+        </span>
+        <strong>AURUM</strong>
+        <small>ИГРОВОЕ СООБЩЕСТВО</small>
+      </div>
     </div>
-  </div>;
+  );
 }
 
-function HomePage({ page, go, minecraft }: { page: Page; go: (page: Page) => void; minecraft: MinecraftState | null }) {
+function HomePage({
+  page,
+  go,
+  minecraft,
+  onUser,
+}: {
+  page: Page;
+  go: (page: Page) => void;
+  minecraft: MinecraftState | null;
+  onUser: (name: string) => void;
+}) {
   const heading = page === 'servers' ? 'Игровые миры' : 'Главная сообщества';
   const subheading = page === 'servers' ? 'Выбери игру.' : 'Игры и новости.';
   return (
     <>
       <div className="page-intro">
-        <div><h1>{heading}</h1><p>{subheading}</p></div>
-        <div className="intro-meta"><span className="demo-dot" />Демонстрационные данные</div>
+        <div>
+          <h1>{heading}</h1>
+          <p>{subheading}</p>
+        </div>
       </div>
 
       <div className="main-grid">
         <div className="primary-column">
           <section className="section">
-            <div className="section-heading"><h2>Игровые миры</h2>{page === 'home' && <button className="text-link" onClick={() => go('servers')}>Все игры <ArrowRight size={16} /></button>}</div>
+            <div className="section-heading">
+              <h2>Игровые миры</h2>
+              {page === 'home' && (
+                <button className="text-link" onClick={() => go('servers')}>
+                  Все игры <ArrowRight size={16} />
+                </button>
+              )}
+            </div>
             <div className="server-card">
-              <div className="server-art" aria-hidden="true"><div className="art-halo" /><div className="art-grid" /><div className="art-block block-one" /><div className="art-block block-two" /><div className="art-block block-three" /><div className="art-glow" /></div>
-              <div className="server-content">
-                <span className="game-label"><span className="game-icon"><Gamepad2 size={16} /></span>MINECRAFT <span className="game-label-line" /> PAPER</span>
-                <h3>Minecraft<br />Community</h3>
-                <p>Профиль и гильдии.</p>
-                <div className="server-actions"><button className="button button-primary" onClick={() => go('minecraft')}>Открыть Minecraft <ArrowRight size={16} /></button>{!minecraft?.profiles.length && <button className="button button-quiet" onClick={() => go('link')}><Link2 size={16} /> Привязать профиль</button>}</div>
+              <div className="server-art" aria-hidden="true">
+                <div className="art-halo" />
+                <div className="art-grid" />
+                <div className="art-block block-one" />
+                <div className="art-block block-two" />
+                <div className="art-block block-three" />
+                <div className="art-glow" />
               </div>
-              <span className="server-status"><span />{minecraft?.profiles[0]?.playerName || 'Профиль не привязан'}</span>
+              <div className="server-content">
+                <span className="game-label">
+                  <span className="game-icon">
+                    <Gamepad2 size={16} />
+                  </span>
+                  MINECRAFT <span className="game-label-line" /> PAPER
+                </span>
+                <h3>
+                  Minecraft
+                  <br />
+                  Community
+                </h3>
+                <p>Профиль и гильдии.</p>
+                <div className="server-actions">
+                  <button className="button button-primary" onClick={() => go('minecraft')}>
+                    Открыть Minecraft <ArrowRight size={16} />
+                  </button>
+                  {!minecraft?.profiles.length && (
+                    <button className="button button-quiet" onClick={() => go('link')}>
+                      <Link2 size={16} /> Привязать профиль
+                    </button>
+                  )}
+                </div>
+              </div>
+              <span className="server-status">
+                <span />
+                {minecraft?.profiles[0]?.playerName || 'Профиль не привязан'}
+              </span>
             </div>
           </section>
 
-          {page === 'home' && <section className="section lower-section">
-            <div className="section-heading"><h2>Лента сообщества</h2></div>
-            <article className="news-card"><div className="news-symbol"><Newspaper size={23} strokeWidth={1.6} /></div><div><div className="news-meta">ОБЩИЕ НОВОСТИ <span /> ПРИМЕР ЗАПИСИ</div><h3>Здесь появятся новости сообщества</h3></div></article>
-          </section>}
+          {page === 'home' && (
+            <section className="section lower-section profile-section">
+              <Feed scope="community" title="Лента сообщества" onUser={onUser} />
+            </section>
+          )}
         </div>
 
         <aside className="right-column">
-          <section className="welcome-panel"><div className="panel-icon"><Compass size={22} strokeWidth={1.6} /></div><h2>Все игры —<br />в одном месте</h2><div className="step-list"><div><span>01</span><p>Выбери игру</p></div><div><span>02</span><p>Привяжи профиль</p></div><div><span>03</span><p>Открой свою страницу</p></div></div><button className="panel-link" onClick={() => go('minecraft')}>Посмотреть Minecraft <ArrowRight size={16} /></button></section>
+          <section className="welcome-panel">
+            <div className="panel-icon">
+              <Compass size={22} strokeWidth={1.6} />
+            </div>
+            <h2>
+              Все игры —<br />в одном месте
+            </h2>
+            <div className="step-list">
+              <div>
+                <span>01</span>
+                <p>Выбери игру</p>
+              </div>
+              <div>
+                <span>02</span>
+                <p>Привяжи профиль</p>
+              </div>
+              <div>
+                <span>03</span>
+                <p>Открой свою страницу</p>
+              </div>
+            </div>
+            <button className="panel-link" onClick={() => go('minecraft')}>
+              Посмотреть Minecraft <ArrowRight size={16} />
+            </button>
+          </section>
         </aside>
       </div>
     </>
@@ -249,16 +611,31 @@ function HomePage({ page, go, minecraft }: { page: Page; go: (page: Page) => voi
 }
 
 function Avatar({ name, version }: { name: string; version?: string | null }) {
-  return <span className="avatar">{version ? <img src={`/api/site/me/avatar?v=${encodeURIComponent(version)}`} alt="" /> : name.charAt(0).toUpperCase()}</span>;
+  return (
+    <span className="avatar">
+      {version ? (
+        <img src={`/api/site/me/avatar?v=${encodeURIComponent(version)}`} alt="" />
+      ) : (
+        name.charAt(0).toUpperCase()
+      )}
+    </span>
+  );
 }
 
-function SettingsPage({ siteMe }: { siteMe: { admin: boolean } | null }) {
+function SettingsPage({
+  siteMe,
+  minecraft,
+}: {
+  siteMe: { admin: boolean; owner: boolean } | null;
+  minecraft: MinecraftState | null;
+}) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [settingsSection, setSettingsSection] = useState<'general' | 'roles'>('general');
   const changePassword = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
@@ -268,8 +645,17 @@ function SettingsPage({ siteMe }: { siteMe: { admin: boolean } | null }) {
     if (newPassword === currentPassword) return setError('Новый пароль должен отличаться от текущего.');
     setBusy(true);
     try {
-      const { error: resultError } = await authClient.changePassword({ currentPassword, newPassword, revokeOtherSessions: true });
-      if (resultError) setError(resultError.status === 429 ? 'Слишком много попыток. Подожди и попробуй снова.' : 'Не удалось сменить пароль. Проверь текущий пароль.');
+      const { error: resultError } = await authClient.changePassword({
+        currentPassword,
+        newPassword,
+        revokeOtherSessions: true,
+      });
+      if (resultError)
+        setError(
+          resultError.status === 429
+            ? 'Слишком много попыток. Подожди и попробуй снова.'
+            : 'Не удалось сменить пароль. Проверь текущий пароль.',
+        );
       else {
         setCurrentPassword('');
         setNewPassword('');
@@ -283,21 +669,97 @@ function SettingsPage({ siteMe }: { siteMe: { admin: boolean } | null }) {
     }
   };
 
-  return <div className="settings-page">
-    <h1>Настройки</h1>
-    {siteMe?.admin && <SiteAdminSettings />}
-    <section className="settings-card settings-password">
-      <h2>Смена пароля</h2>
-      <form onSubmit={changePassword}>
-        <label>Текущий пароль<input type="password" autoComplete="current-password" value={currentPassword} onChange={(event) => { setCurrentPassword(event.target.value); setError(''); }} required disabled={busy} /></label>
-        <label>Новый пароль<input type="password" autoComplete="new-password" value={newPassword} onChange={(event) => { setNewPassword(event.target.value); setError(''); }} required disabled={busy} /></label>
-        <label>Повтори новый пароль<input type="password" autoComplete="new-password" value={confirmation} onChange={(event) => { setConfirmation(event.target.value); setError(''); }} required disabled={busy} /></label>
-        <button className="button button-primary" type="submit" disabled={busy}>{busy ? 'Сохраняем…' : 'Сменить пароль'}</button>
-      </form>
-      {error && <p className="auth-error" role="alert">{error}</p>}
-      {notice && <p className="auth-notice" role="status">{notice}</p>}
-    </section>
-  </div>;
+  return (
+    <div className="settings-page">
+      <h1>Настройки</h1>
+      {siteMe?.owner && (
+        <nav className="game-tabs" aria-label="Разделы настроек">
+          <button
+            className={settingsSection === 'general' ? 'active' : ''}
+            onClick={() => setSettingsSection('general')}
+          >
+            Общие настройки
+          </button>
+          <button
+            className={settingsSection === 'roles' ? 'active' : ''}
+            onClick={() => setSettingsSection('roles')}
+          >
+            Пользователи и роли
+          </button>
+        </nav>
+      )}
+      {siteMe?.owner && settingsSection === 'roles' ? (
+        <OwnerRoles />
+      ) : (
+        <>
+          {siteMe?.admin && <SiteAdminSettings />}
+          {siteMe?.admin && <ModerationQueue />}
+          <PrivacySettings minecraft={minecraft} />
+          <TwoFactorSettings />
+          <section className="settings-card settings-password">
+            <h2>Смена пароля</h2>
+            <form onSubmit={changePassword}>
+              <label>
+                Текущий пароль
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(event) => {
+                    setCurrentPassword(event.target.value);
+                    setError('');
+                  }}
+                  required
+                  disabled={busy}
+                />
+              </label>
+              <label>
+                Новый пароль
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => {
+                    setNewPassword(event.target.value);
+                    setError('');
+                  }}
+                  required
+                  disabled={busy}
+                />
+              </label>
+              <label>
+                Повтори новый пароль
+                <input
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmation}
+                  onChange={(event) => {
+                    setConfirmation(event.target.value);
+                    setError('');
+                  }}
+                  required
+                  disabled={busy}
+                />
+              </label>
+              <button className="button button-primary" type="submit" disabled={busy}>
+                {busy ? 'Сохраняем…' : 'Сменить пароль'}
+              </button>
+            </form>
+            {error && (
+              <p className="auth-error" role="alert">
+                {error}
+              </p>
+            )}
+            {notice && (
+              <p className="auth-notice" role="status">
+                {notice}
+              </p>
+            )}
+          </section>
+        </>
+      )}
+    </div>
+  );
 }
 
 export default App;
