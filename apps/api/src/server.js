@@ -5,6 +5,7 @@ import nodemailer from 'nodemailer';
 import { auth } from './auth.js';
 import { readConfig } from './config.js';
 import { encryptSecret, getSiteSettings, initSiteData, invalidateSiteSettings, isSiteAdmin, normalizeProfileInput, pool } from './site-data.js';
+import { bridgeRequest, LinkError, linkMinecraftProfile, minecraftProfiles } from './minecraft-link.js';
 
 const config = readConfig();
 const handleAuth = toNodeHandler(auth);
@@ -104,6 +105,30 @@ const server = createServer(async (req, res) => {
     const admin = await isSiteAdmin(session.user.id);
     if (settings.maintenanceEnabled && !admin) return json(res, 503, { error: 'Site maintenance' });
 
+    if (path === '/api/site/minecraft' && req.method === 'GET') {
+      const profiles = await minecraftProfiles(pool, session.user.id);
+      try {
+        const { servers } = await bridgeRequest(config, 'servers');
+        if (!Array.isArray(servers) || servers.length > 32 || servers.some(item => !item
+          || typeof item.id !== 'string' || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(item.id)
+          || typeof item.name !== 'string' || !item.name || item.name.length > 120)) throw new LinkError(503, 'Список серверов недоступен.');
+        return json(res, 200, { available: true, servers: servers.map(({ id, name }) => ({ id, name })), profiles });
+      } catch (error) {
+        return json(res, 200, { available: false, servers: [], profiles,
+          error: error instanceof LinkError ? error.message : 'Связь с игрой временно недоступна.' });
+      }
+    }
+    if (path === '/api/site/minecraft/link' && req.method === 'POST') {
+      if (!session.user.emailVerified) return json(res, 403, { error: 'Сначала подтверди email.' });
+      if (req.headers.origin !== config.publicUrl) return json(res, 403, { error: 'Invalid origin' });
+      if (req.headers['content-type']?.split(';')[0] !== 'application/json') return json(res, 415, { error: 'JSON required' });
+      let body;
+      try { body = JSON.parse((await readBody(req, 1024)).toString('utf8')); }
+      catch (error) { return json(res, error.message === 'Body too large' ? 413 : 400, { error: 'Некорректные данные привязки.' }); }
+      try { return json(res, 201, { profile: await linkMinecraftProfile(pool, config, session.user.id, body) }); }
+      catch (error) { if (error instanceof LinkError) return json(res, error.status, { error: error.message }); throw error; }
+    }
+
     if (path === '/api/site/me' && req.method === 'GET') {
       const avatar = await pool.query('SELECT updated_at FROM site_avatar WHERE user_id=$1', [session.user.id]);
       return json(res, 200, { admin, avatarUpdatedAt: avatar.rows[0]?.updated_at || null,
@@ -141,7 +166,8 @@ const server = createServer(async (req, res) => {
         WHERE lower(u.username)=lower($1)`, [username]);
       if (!profile.rows[0]) return json(res, 404, { error: 'Profile not found' });
       const { id, ...publicProfile } = profile.rows[0];
-      return json(res, 200, { ...publicProfile, own: id === session.user.id });
+      return json(res, 200, { ...publicProfile, own: id === session.user.id,
+        minecraftProfiles: await minecraftProfiles(pool, id, id === session.user.id) });
     }
     if (path === '/api/site/me/avatar' && req.method === 'GET') {
       const avatar = await pool.query('SELECT image FROM site_avatar WHERE user_id=$1', [session.user.id]);

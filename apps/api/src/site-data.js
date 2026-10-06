@@ -61,6 +61,21 @@ export async function initSiteData() {
     about text NOT NULL DEFAULT '',
     updated_at timestamptz NOT NULL DEFAULT now()
   )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS site_minecraft_profile (
+    user_id text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    server_id uuid NOT NULL,
+    server_name varchar(120) NOT NULL,
+    player_uuid uuid NOT NULL,
+    player_name varchar(16) NOT NULL,
+    linked_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (user_id, server_id),
+    UNIQUE (server_id, player_uuid)
+  )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS site_link_attempt (
+    user_id text PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+    window_start timestamptz NOT NULL DEFAULT now(),
+    attempts integer NOT NULL DEFAULT 1
+  )`);
   await pool.query(`INSERT INTO site_settings
     (id, registration_enabled, email_enabled, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from)
     VALUES (1, $1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id) DO NOTHING`,

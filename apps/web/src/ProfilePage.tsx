@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { ArrowLeft, ArrowRight, Copy, Gamepad2, X } from 'lucide-react';
 import { ImageCropper } from './ImageCropper';
+import type { MinecraftProfile } from './MinecraftLinkPage';
 
 type Profile = {
   username: string;
@@ -10,6 +11,7 @@ type Profile = {
   avatarUpdatedAt: string | null;
   bannerUpdatedAt: string | null;
   own: boolean;
+  minecraftProfiles?: MinecraftProfile[];
 };
 
 type Tab = 'overview' | 'posts' | 'comments';
@@ -204,7 +206,7 @@ export function ProfilePage({ username, preview, imageCooldownHours, onAvatarUpd
     {tab === 'overview' ? <div className="profile-columns">
       <div className="profile-main-column">
         <section className="profile-section"><h2>{profile.own ? 'Мой Minecraft' : 'Игровой профиль'}</h2>
-          <div className="profile-game-card"><span className="profile-game-icon"><Gamepad2 size={22} /></span><div><strong>Minecraft Community</strong><p>Привязка пока недоступна.</p></div>{profile.own && <button onClick={onLink}>Как связать <ArrowRight size={16} /></button>}</div>
+          {profile.minecraftProfiles?.length ? profile.minecraftProfiles.map(game => <div key={game.serverId} className="profile-game-card"><span className="profile-game-icon"><Gamepad2 size={22} /></span><div><strong>{game.playerName}</strong><p>{game.serverName}</p></div></div>) : <div className="profile-game-card"><span className="profile-game-icon"><Gamepad2 size={22} /></span><div><strong>Minecraft Community</strong><p>Профиль ещё не привязан.</p></div>{profile.own && <button onClick={onLink}>Привязать <ArrowRight size={16} /></button>}</div>}
         </section>
         <section className="profile-section"><div className="profile-section-heading"><h2>Записи</h2><button onClick={() => setTab('posts')}>Все записи <ArrowRight size={15} /></button></div><div className="profile-empty">Записи пока недоступны.</div></section>
         <section className="profile-section"><div className="profile-section-heading"><h2>Комментарии</h2><button onClick={() => setTab('comments')}>Открыть <ArrowRight size={15} /></button></div><div className="profile-empty">Комментарии пока недоступны.</div></section>

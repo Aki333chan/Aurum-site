@@ -28,3 +28,13 @@ test('registration cannot open without mail, but verified accounts can sign in b
   assert.equal(beforeMail.emailEnabled, false);
   assert.throws(() => readConfig({ ...valid, REGISTRATION_ENABLED: 'yes' }), /REGISTRATION_ENABLED/);
 });
+
+test('private bridge is optional and partial, insecure or credential-bearing URLs fail closed', () => {
+  assert.equal(readConfig(valid).bridgeUrl, '');
+  const bridge = { AURUM_PANEL_BRIDGE_URL: 'http://10.0.0.1:3001', AURUM_PANEL_BRIDGE_TOKEN: 'a'.repeat(48) };
+  assert.equal(readConfig({ ...valid, ...bridge }).bridgeUrl, bridge.AURUM_PANEL_BRIDGE_URL);
+  for (const url of ['http://example.com', 'http://10.example.com', 'http://127.evil.example', 'https://user:pass@localhost', 'http://10.0.0.1:3001?secret=x']) {
+    assert.throws(() => readConfig({ ...valid, ...bridge, AURUM_PANEL_BRIDGE_URL: url }));
+  }
+  assert.throws(() => readConfig({ ...valid, ...bridge, AURUM_PANEL_BRIDGE_TOKEN: '' }));
+});

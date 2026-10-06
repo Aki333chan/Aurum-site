@@ -1,8 +1,9 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { AuthPage } from './AuthPage';
 import { authClient } from './auth-client';
 import { SiteAdminSettings } from './SiteAdminSettings';
 import { ProfilePage } from './ProfilePage';
+import { MinecraftLinkPage, type MinecraftState } from './MinecraftLinkPage';
 import { LegalDialog, LegalLinks } from './LegalDocuments';
 import { legalDocumentFromPath, legalPaths, type LegalDocument } from './legal-content';
 import {
@@ -19,7 +20,6 @@ import {
   Moon,
   Newspaper,
   Settings2,
-  ShieldCheck,
   Sun,
   UsersRound,
   X,
@@ -58,11 +58,31 @@ function App() {
   const [maintenance, setMaintenance] = useState(false);
   const [loginTransition, setLoginTransition] = useState(false);
   const [legalDocument, setLegalDocument] = useState<LegalDocument | null>(legalDocumentFromPath);
+  const [minecraft, setMinecraft] = useState<MinecraftState | null>(null);
+  const linkEntry = useRef(window.location.pathname === '/minecraft/link' ? window.location.pathname + window.location.search + window.location.hash : null);
   const inMinecraft = page === 'minecraft' || page === 'guilds' || page === 'link';
   const preview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview');
   const transitionPreview = import.meta.env.DEV && new URLSearchParams(window.location.search).has('transition');
   const displayName = session?.user.displayUsername || session?.user.username || session?.user.name || 'AurumPlayer';
   const transition = (loginTransition || transitionPreview) && <LoginTransition key="login-transition" onDone={() => setLoginTransition(false)} />;
+
+  const loadMinecraft = useCallback(async (signal?: AbortSignal): Promise<MinecraftState> => {
+    const response = await fetch('/api/site/minecraft', { cache: 'no-store', signal });
+    if (!response.ok) throw new Error('Не удалось загрузить Minecraft-профиль.');
+    const result: MinecraftState = await response.json();
+    if (!signal?.aborted) setMinecraft(result);
+    return result;
+  }, []);
+
+  useEffect(() => {
+    setMinecraft(null);
+    if (!session?.user.id || preview) return;
+    const controller = new AbortController();
+    void loadMinecraft(controller.signal).catch(() => {
+      if (!controller.signal.aborted) setMinecraft({ available: false, servers: [], profiles: [], error: 'Не удалось загрузить Minecraft. Попробуй обновить страницу.' });
+    });
+    return () => controller.abort();
+  }, [session?.user.id, preview, loadMinecraft]);
 
   useEffect(() => {
     if (!session?.user.id || preview) return;
@@ -125,7 +145,7 @@ function App() {
   };
 
   if (isPending && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}>{legalOverlay}<main className="auth-loading" role="status">Проверяем вход в Aurum…</main>{transition}</div>;
-  if ((!session || maintenance) && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}>{legalOverlay}<AuthPage lightTheme={lightTheme} toggleTheme={toggleTheme} onLoginSuccess={() => setLoginTransition(true)} onOpenLegal={openLegal} />{transition}</div>;
+  if ((!session || maintenance) && !preview) return <div className={`app ${lightTheme ? 'theme-light' : ''}`}>{legalOverlay}<AuthPage lightTheme={lightTheme} toggleTheme={toggleTheme} onLoginSuccess={() => { if (linkEntry.current) window.history.replaceState(null, '', linkEntry.current); setLoginTransition(true); }} onOpenLegal={openLegal} />{transition}</div>;
 
   return (
     <div className={`app ${lightTheme ? 'theme-light' : ''}`}>
@@ -166,7 +186,7 @@ function App() {
         </aside>
 
         <main className="content">
-          {page === 'link' ? <LinkPage onBack={() => go('minecraft')} /> : page === 'profile' || page === 'publicProfile' ? <ProfilePage key={page === 'profile' ? 'own' : `public:${viewedUsername.toLowerCase()}`} username={page === 'profile' ? session?.user.username || displayName : viewedUsername} preview={preview} imageCooldownHours={siteMe?.avatarCooldownHours || 24} onAvatarUpdate={(avatarUpdatedAt) => setSiteMe((current) => current && { ...current, avatarUpdatedAt })} onBack={() => go('home')} onLink={() => go('link')} /> : page === 'settings' ? <SettingsPage siteMe={siteMe} /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} /> : <HomePage page={page} go={go} />}
+          {page === 'link' ? <MinecraftLinkPage state={minecraft} reload={loadMinecraft} onBack={() => go('minecraft')} /> : page === 'profile' || page === 'publicProfile' ? <ProfilePage key={page === 'profile' ? 'own' : `public:${viewedUsername.toLowerCase()}`} username={page === 'profile' ? session?.user.username || displayName : viewedUsername} preview={preview} imageCooldownHours={siteMe?.avatarCooldownHours || 24} onAvatarUpdate={(avatarUpdatedAt) => setSiteMe((current) => current && { ...current, avatarUpdatedAt })} onBack={() => go('home')} onLink={() => go('link')} /> : page === 'settings' ? <SettingsPage siteMe={siteMe} /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} minecraft={minecraft} /> : <HomePage page={page} go={go} minecraft={minecraft} />}
         </main>
       </div>
       {mobileNav && <button className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />}
@@ -189,7 +209,7 @@ function LoginTransition({ onDone }: { onDone: () => void }) {
   </div>;
 }
 
-function HomePage({ page, go }: { page: Page; go: (page: Page) => void }) {
+function HomePage({ page, go, minecraft }: { page: Page; go: (page: Page) => void; minecraft: MinecraftState | null }) {
   const heading = page === 'servers' ? 'Игровые миры' : 'Главная сообщества';
   const subheading = page === 'servers' ? 'Выбери игру.' : 'Игры и новости.';
   return (
@@ -209,9 +229,9 @@ function HomePage({ page, go }: { page: Page; go: (page: Page) => void }) {
                 <span className="game-label"><span className="game-icon"><Gamepad2 size={16} /></span>MINECRAFT <span className="game-label-line" /> PAPER</span>
                 <h3>Minecraft<br />Community</h3>
                 <p>Профиль и гильдии.</p>
-                <div className="server-actions"><button className="button button-primary" onClick={() => go('minecraft')}>Открыть Minecraft <ArrowRight size={16} /></button><button className="button button-quiet" onClick={() => go('link')}><Link2 size={16} /> Привязать профиль</button></div>
+                <div className="server-actions"><button className="button button-primary" onClick={() => go('minecraft')}>Открыть Minecraft <ArrowRight size={16} /></button>{!minecraft?.profiles.length && <button className="button button-quiet" onClick={() => go('link')}><Link2 size={16} /> Привязать профиль</button>}</div>
               </div>
-              <span className="server-status"><span />Профиль не привязан</span>
+              <span className="server-status"><span />{minecraft?.profiles[0]?.playerName || 'Профиль не привязан'}</span>
             </div>
           </section>
 
@@ -229,13 +249,16 @@ function HomePage({ page, go }: { page: Page; go: (page: Page) => void }) {
   );
 }
 
-function MinecraftPage({ go }: { go: (page: Page) => void }) {
+function MinecraftPage({ go, minecraft }: { go: (page: Page) => void; minecraft: MinecraftState | null }) {
   return <div className="game-page">
     <button className="back-link" onClick={() => go('servers')}><ArrowLeft size={18} /> К игровым мирам</button>
-    <div className="page-intro"><div><h1>Minecraft Community</h1><p>Профиль, гильдии, события.</p></div><div className="intro-meta"><span className="demo-dot" />Демонстрационные данные</div></div>
+    <div className="page-intro"><div><h1>Minecraft Community</h1><p>Профиль, гильдии, события.</p></div></div>
     <MinecraftTabs current="minecraft" go={go} />
     <div className="game-grid">
-      <section className="game-profile-card"><span className="game-icon"><Gamepad2 size={17} /></span><h2>Привяжи Minecraft-профиль</h2><p>Здесь появятся игровые данные.</p><button className="button button-primary" onClick={() => go('link')}><Link2 size={17} /> Привязать профиль <ArrowRight size={16} /></button></section>
+      {minecraft?.profiles.length ? minecraft.profiles.map(profile => <section key={profile.serverId} className="game-profile-card linked-game-profile">
+        <span className="game-icon"><Gamepad2 size={17} /></span><h2>{profile.playerName}</h2><p>{profile.serverName}</p>
+        <dl className="minecraft-identity"><div><dt>UUID</dt><dd>{profile.playerUuid}</dd></div><div><dt>Привязан</dt><dd>{new Date(profile.linkedAt).toLocaleDateString('ru-RU')}</dd></div></dl>
+      </section>) : <section className="game-profile-card"><span className="game-icon"><Gamepad2 size={17} /></span><h2>{minecraft ? 'Привяжи Minecraft-профиль' : 'Загружаем профиль…'}</h2><p>{minecraft?.error || 'Твой игровой аккаунт появится здесь.'}</p><button className="button button-primary" onClick={() => go('link')}><Link2 size={17} /> Привязать профиль <ArrowRight size={16} /></button></section>}
       <button className="game-guild-card" onClick={() => go('guilds')}><UsersRound size={25} strokeWidth={1.6} /><strong>Гильдии Minecraft</strong><span>Список и состав.</span><span className="game-card-link">Открыть каталог <ArrowRight size={16} /></span></button>
     </div>
     <section className="section lower-section"><div className="section-heading"><h2>Лента Minecraft</h2></div><article className="news-card"><div className="news-symbol"><Newspaper size={23} strokeWidth={1.6} /></div><div><div className="news-meta">MINECRAFT <span /> ПРИМЕР ЗАПИСИ</div><h3>Здесь появятся новости Minecraft</h3></div></article></section>
@@ -244,11 +267,6 @@ function MinecraftPage({ go }: { go: (page: Page) => void }) {
 
 function Avatar({ name, version }: { name: string; version?: string | null }) {
   return <span className="avatar">{version ? <img src={`/api/site/me/avatar?v=${encodeURIComponent(version)}`} alt="" /> : name.charAt(0).toUpperCase()}</span>;
-}
-
-function LinkPage({ onBack }: { onBack: () => void }) {
-  const [code, setCode] = useState('');
-  return <div className="form-page"><button className="back-link" onClick={onBack}><ArrowLeft size={18} /> К Minecraft</button><div className="form-layout"><div className="form-hero"><h1>Привяжи Minecraft-профиль</h1><div className="link-steps"><div><span>1</span><p>Зайди на сервер.</p></div><div><span>2</span><p>Напиши <code>/aurumlink</code> или <code>/alink</code>.</p></div><div><span>3</span><p>Введи код из чата здесь.</p></div></div><div className="secure-note"><ShieldCheck size={19} /> Никому не передавай код.</div></div><div className="link-form-card"><span className="form-card-icon"><Link2 size={24} /></span><h2>Код из игры</h2><label htmlFor="link-code">ОДНОРАЗОВЫЙ КОД</label><input id="link-code" autoComplete="off" maxLength={12} value={code} onChange={event => setCode(event.target.value.toUpperCase())} placeholder="Например, AB12-CD34" /><button className="button button-primary form-submit" disabled>Привязать профиль <ArrowRight size={17} /></button><p className="form-disclaimer">Привязка пока недоступна.</p></div></div></div>;
 }
 
 function MinecraftTabs({ current, go }: { current: 'minecraft' | 'guilds'; go: (page: Page) => void }) {
