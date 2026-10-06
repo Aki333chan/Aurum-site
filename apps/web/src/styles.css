@@ -284,7 +284,7 @@ code { color: var(--gold); font-family: inherit; font-weight: 600; }
 .profile-tabs button.active { border-bottom-color: var(--violet); }
 .profile-columns { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(240px, .8fr); gap: 35px; align-items: start; }
 .profile-main-column, .profile-side-column { min-width: 0; }
-.profile-section { margin: 0 0 32px; }
+.profile-section { margin-bottom: 32px; }
 .profile-section h2 { margin: 0 0 14px; font-size: 18px; letter-spacing: -.025em; }
 .profile-section-heading { display: flex; justify-content: space-between; align-items: center; gap: 15px; }
 .profile-section-heading button { display: inline-flex; align-items: center; gap: 5px; padding: 0 0 13px; border: 0; background: none; color: var(--violet); font-size: 11px; font-weight: 600; }
