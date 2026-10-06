@@ -195,6 +195,55 @@ code { color: var(--gold); font-family: inherit; font-weight: 600; }
 .game-guild-card > span:not(.game-card-link) { color: var(--muted); font-size: 12px; line-height: 1.5; }
 .game-card-link { display: inline-flex; align-items: center; gap: 7px; color: var(--violet); font-size: 11px; font-weight: 700; margin-top: auto; padding-top: 17px; }
 .profile-page { max-width: 1160px; margin: 0 auto; }
+.minecraft-page-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin: 25px 0 20px; }
+.minecraft-page-heading h1 { margin: 0; font-size: clamp(27px, 3vw, 35px); letter-spacing: -.03em; }
+.minecraft-server-select { display: grid; gap: 7px; color: var(--muted); font-size: 12px; max-width: 100%; }
+.minecraft-server-select select, .minecraft-guild-search input { min-height: 42px; min-width: 0; max-width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg); color: var(--text); }
+.minecraft-profile-hero .profile-cover { height: 165px; }
+.minecraft-profile-hero .profile-identity-copy h2 { margin: 0 0 6px; font-size: clamp(26px, 3vw, 37px); letter-spacing: -.03em; overflow-wrap: anywhere; }
+.minecraft-presence { align-self: center; color: var(--muted); font-size: 13px; }
+.minecraft-presence.online { color: var(--green); }
+.minecraft-data-toolbar, .minecraft-directory-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.minecraft-data-toolbar { margin: 18px 0; color: var(--muted); font-size: 12px; }
+.minecraft-community .button-quiet { color: var(--text); background: var(--panel-hover); border-color: var(--border); }
+.minecraft-profile-columns { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(220px, .8fr); gap: 25px; }
+.minecraft-private { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.minecraft-counters { margin: 0; font-variant-numeric: tabular-nums; }
+.minecraft-counters > div { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; padding: 15px 0; border-bottom: 1px solid var(--border-soft); }
+.minecraft-counters > div:last-child { border-bottom: 0; }
+.minecraft-counters dt { color: var(--muted); font-size: 13px; }
+.minecraft-counters dd { margin: 0; text-align: right; overflow-wrap: anywhere; font-size: 15px; font-weight: 600; }
+.minecraft-guild-identity { display: flex; align-items: center; gap: 15px; margin: 20px 0; min-width: 0; }
+.minecraft-guild-crest { display: grid; place-items: center; flex-shrink: 0; width: 60px; height: 60px; padding: 6px; border-radius: 13px; background: var(--violet-bg); color: var(--text); overflow-wrap: anywhere; text-align: center; font-size: 14px; font-weight: 700; }
+.minecraft-guild-identity h3, .minecraft-directory-name h3 { margin: 0 0 7px; overflow-wrap: anywhere; font-size: 17px; }
+.minecraft-guild-identity p, .minecraft-directory-name p, .minecraft-empty-text { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.minecraft-membership .panel-link { min-height: 36px; font-size: 13px; margin-top: 9px; }
+.minecraft-account-details { margin-top: 6px; }
+.minecraft-account-details .minecraft-identity dd { overflow-wrap: anywhere; }
+.minecraft-directory-heading h2 { margin: 0; }
+.minecraft-guild-search { display: flex; align-items: flex-end; gap: 12px; margin: 24px 0; }
+.minecraft-guild-search label { display: grid; flex: 1; min-width: 0; gap: 8px; color: var(--muted); font-size: 13px; }
+.minecraft-guild-search input { width: 100%; font-size: 14px; }
+.minecraft-guild-search input::placeholder { color: var(--muted); }
+.minecraft-guild-list { list-style: none; margin: 0; padding: 0; }
+.minecraft-guild-list li { display: flex; align-items: center; gap: 18px; padding: 20px 0; border-top: 1px solid var(--border-soft); }
+.minecraft-directory-name { flex: 1; min-width: 0; }
+.minecraft-guild-count { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 13px; }
+.minecraft-read-error { color: var(--error-text, #efaaaa); font-size: 14px; line-height: 1.6; }
+.theme-light .minecraft-read-error { color: #a52f45; }
+.minecraft-link-empty { max-width: 650px; }
+.minecraft-link-empty > svg { color: var(--gold); }
+.minecraft-link-empty p { color: var(--muted); }
+@media (max-width: 760px) {
+  .minecraft-profile-columns { grid-template-columns: 1fr; gap: 0; }
+  .minecraft-profile-hero .profile-cover { height: 130px; }
+  .minecraft-private { font-size: 11px; }
+  .minecraft-guild-list li { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; }
+  .minecraft-guild-list .minecraft-guild-crest { width: 52px; height: 52px; grid-row: span 2; }
+  .minecraft-guild-count { grid-column: 2; }
+  .minecraft-counters > div { gap: 12px; }
+  .minecraft-presence { grid-column: 2; }
+}
 .profile-path { display: flex; align-items: center; gap: 10px; margin: 0 0 21px; color: var(--muted); font-size: 12px; }
 .profile-path button { display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; color: var(--violet); font-weight: 600; }
 .profile-path button:hover { color: var(--text); }

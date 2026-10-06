@@ -4,10 +4,10 @@ import { authClient } from './auth-client';
 import { SiteAdminSettings } from './SiteAdminSettings';
 import { ProfilePage } from './ProfilePage';
 import { MinecraftLinkPage, type MinecraftState } from './MinecraftLinkPage';
+import { MinecraftCommunityPage } from './MinecraftCommunityPage';
 import { LegalDialog, LegalLinks } from './LegalDocuments';
 import { legalDocumentFromPath, legalPaths, type LegalDocument } from './legal-content';
 import {
-  ArrowLeft,
   ArrowRight,
   BookOpen,
   Compass,
@@ -21,7 +21,6 @@ import {
   Newspaper,
   Settings2,
   Sun,
-  UsersRound,
   X,
 } from 'lucide-react';
 
@@ -186,7 +185,7 @@ function App() {
         </aside>
 
         <main className="content">
-          {page === 'link' ? <MinecraftLinkPage state={minecraft} reload={loadMinecraft} onBack={() => go('minecraft')} /> : page === 'profile' || page === 'publicProfile' ? <ProfilePage key={page === 'profile' ? 'own' : `public:${viewedUsername.toLowerCase()}`} username={page === 'profile' ? session?.user.username || displayName : viewedUsername} preview={preview} imageCooldownHours={siteMe?.avatarCooldownHours || 24} onAvatarUpdate={(avatarUpdatedAt) => setSiteMe((current) => current && { ...current, avatarUpdatedAt })} onBack={() => go('home')} onLink={() => go('link')} /> : page === 'settings' ? <SettingsPage siteMe={siteMe} /> : page === 'guilds' ? <ConceptPage go={go} /> : page === 'minecraft' ? <MinecraftPage go={go} minecraft={minecraft} /> : <HomePage page={page} go={go} minecraft={minecraft} />}
+          {page === 'link' ? <MinecraftLinkPage state={minecraft} reload={loadMinecraft} onBack={() => go('minecraft')} /> : page === 'profile' || page === 'publicProfile' ? <ProfilePage key={page === 'profile' ? 'own' : `public:${viewedUsername.toLowerCase()}`} username={page === 'profile' ? session?.user.username || displayName : viewedUsername} preview={preview} imageCooldownHours={siteMe?.avatarCooldownHours || 24} onAvatarUpdate={(avatarUpdatedAt) => setSiteMe((current) => current && { ...current, avatarUpdatedAt })} onBack={() => go('home')} onLink={() => go('link')} /> : page === 'settings' ? <SettingsPage siteMe={siteMe} /> : page === 'guilds' || page === 'minecraft' ? <MinecraftCommunityPage key={page} minecraft={minecraft} guilds={page === 'guilds'} avatarVersion={siteMe?.avatarUpdatedAt} onServers={() => go('servers')} onLink={() => go('link')} onGuilds={() => go('guilds')} onOverview={() => go('minecraft')} /> : <HomePage page={page} go={go} minecraft={minecraft} />}
         </main>
       </div>
       {mobileNav && <button className="nav-scrim" aria-label="Закрыть меню" onClick={() => setMobileNav(false)} />}
@@ -249,35 +248,8 @@ function HomePage({ page, go, minecraft }: { page: Page; go: (page: Page) => voi
   );
 }
 
-function MinecraftPage({ go, minecraft }: { go: (page: Page) => void; minecraft: MinecraftState | null }) {
-  return <div className="game-page">
-    <button className="back-link" onClick={() => go('servers')}><ArrowLeft size={18} /> К игровым мирам</button>
-    <div className="page-intro"><div><h1>Minecraft Community</h1><p>Профиль, гильдии, события.</p></div></div>
-    <MinecraftTabs current="minecraft" go={go} />
-    <div className="game-grid">
-      {minecraft?.profiles.length ? minecraft.profiles.map(profile => <section key={profile.serverId} className="game-profile-card linked-game-profile">
-        <span className="game-icon"><Gamepad2 size={17} /></span><h2>{profile.playerName}</h2><p>{profile.serverName}</p>
-        <dl className="minecraft-identity"><div><dt>UUID</dt><dd>{profile.playerUuid}</dd></div><div><dt>Привязан</dt><dd>{new Date(profile.linkedAt).toLocaleDateString('ru-RU')}</dd></div></dl>
-      </section>) : <section className="game-profile-card"><span className="game-icon"><Gamepad2 size={17} /></span><h2>{minecraft ? 'Привяжи Minecraft-профиль' : 'Загружаем профиль…'}</h2><p>{minecraft?.error || 'Твой игровой аккаунт появится здесь.'}</p><button className="button button-primary" onClick={() => go('link')}><Link2 size={17} /> Привязать профиль <ArrowRight size={16} /></button></section>}
-      <button className="game-guild-card" onClick={() => go('guilds')}><UsersRound size={25} strokeWidth={1.6} /><strong>Гильдии Minecraft</strong><span>Список и состав.</span><span className="game-card-link">Открыть каталог <ArrowRight size={16} /></span></button>
-    </div>
-    <section className="section lower-section"><div className="section-heading"><h2>Лента Minecraft</h2></div><article className="news-card"><div className="news-symbol"><Newspaper size={23} strokeWidth={1.6} /></div><div><div className="news-meta">MINECRAFT <span /> ПРИМЕР ЗАПИСИ</div><h3>Здесь появятся новости Minecraft</h3></div></article></section>
-  </div>;
-}
-
 function Avatar({ name, version }: { name: string; version?: string | null }) {
   return <span className="avatar">{version ? <img src={`/api/site/me/avatar?v=${encodeURIComponent(version)}`} alt="" /> : name.charAt(0).toUpperCase()}</span>;
-}
-
-function MinecraftTabs({ current, go }: { current: 'minecraft' | 'guilds'; go: (page: Page) => void }) {
-  return <nav className="game-tabs" aria-label="Разделы Minecraft">
-    <button className={current === 'minecraft' ? 'active' : ''} aria-current={current === 'minecraft' ? 'page' : undefined} onClick={() => go('minecraft')}>Обзор</button>
-    <button className={current === 'guilds' ? 'active' : ''} aria-current={current === 'guilds' ? 'page' : undefined} onClick={() => go('guilds')}>Гильдии</button>
-  </nav>;
-}
-
-function ConceptPage({ go }: { go: (page: Page) => void }) {
-  return <div className="concept-page"><button className="back-link" onClick={() => go('servers')}><ArrowLeft size={18} /> К игровым мирам</button><h1>Гильдии Minecraft</h1><MinecraftTabs current="guilds" go={go} /><div className="concept-card"><span><UsersRound size={25} /></span><div><strong>Раздел пока в разработке</strong></div></div></div>;
 }
 
 function SettingsPage({ siteMe }: { siteMe: { admin: boolean } | null }) {

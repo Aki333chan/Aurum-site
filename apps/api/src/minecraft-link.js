@@ -17,6 +17,7 @@ export function normalizeLinkInput(body) {
 }
 
 export async function bridgeRequest(config, path, body, fetchImpl = fetch) {
+  if (!['servers', 'consume', 'profile', 'guilds'].includes(path)) throw new LinkError(400, 'Недопустимый запрос к игре.');
   if (!config.bridgeUrl || !config.bridgeToken) throw new LinkError(503, 'Связь с игрой пока не настроена.');
   let response;
   try {
@@ -27,7 +28,7 @@ export async function bridgeRequest(config, path, body, fetchImpl = fetch) {
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
   } catch { throw new LinkError(503, 'Сервер не отвечает. Попробуй позже.'); }
-  if (body && response.status === 404) throw new LinkError(400, 'Код истёк или уже использован. Получи новый через /aurumlink.');
+  if (path === 'consume' && response.status === 404) throw new LinkError(400, 'Код истёк или уже использован. Получи новый через /aurumlink.');
   if (!response.ok) throw new LinkError(503, 'Связь с игрой временно недоступна.');
   try {
     const text = await response.text();

@@ -6,6 +6,7 @@ import { auth } from './auth.js';
 import { readConfig } from './config.js';
 import { encryptSecret, getSiteSettings, initSiteData, invalidateSiteSettings, isSiteAdmin, normalizeProfileInput, pool } from './site-data.js';
 import { bridgeRequest, LinkError, linkMinecraftProfile, minecraftProfiles } from './minecraft-link.js';
+import { minecraftGuildDirectory, minecraftProfileData } from './minecraft-data.js';
 
 const config = readConfig();
 const handleAuth = toNodeHandler(auth);
@@ -75,7 +76,8 @@ function imageFormat(buffer) {
 
 const server = createServer(async (req, res) => {
   try {
-    const path = new URL(req.url || '/', 'http://localhost').pathname;
+    const url = new URL(req.url || '/', 'http://localhost');
+    const path = url.pathname;
     if (path === '/api/health/ready' && req.method === 'GET') {
       await pool.query('SELECT 1');
       return json(res, 200, { ready: true });
@@ -127,6 +129,18 @@ const server = createServer(async (req, res) => {
       catch (error) { return json(res, error.message === 'Body too large' ? 413 : 400, { error: 'Некорректные данные привязки.' }); }
       try { return json(res, 201, { profile: await linkMinecraftProfile(pool, config, session.user.id, body) }); }
       catch (error) { if (error instanceof LinkError) return json(res, error.status, { error: error.message }); throw error; }
+    }
+
+    if (['/api/site/minecraft/profile', '/api/site/minecraft/guilds'].includes(path) && req.method === 'GET') {
+      const profile = path.endsWith('/profile');
+      if (url.searchParams.getAll('server').length !== 1 || [...url.searchParams.keys()].some(key => !['server', ...(profile ? [] : ['q'])].includes(key)))
+        return json(res, 400, { error: 'Некорректный запрос к игре.' });
+      try {
+        const result = profile
+          ? await minecraftProfileData(pool, config, session.user.id, url.searchParams.get('server'))
+          : await minecraftGuildDirectory(config, url.searchParams.get('server'), url.searchParams.get('q') || '');
+        return json(res, 200, result);
+      } catch (error) { if (error instanceof LinkError) return json(res, error.status, { error: error.message }); throw error; }
     }
 
     if (path === '/api/site/me' && req.method === 'GET') {
